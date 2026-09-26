@@ -27,3 +27,7 @@ GitHub Pages 只能托管静态页面。资源会在访问者自己的浏览器�
 ## Supabase 动态模式
 
 在 Supabase 的 SQL Editor 中执行 `supabase-setup.sql`。页面会自动检测 `resource_items` 数据表与 `resource-files` 存储桶；配置成功后，所有访客会读取同一份云端资源列表。
+
+管理员模式的默认密码是 `我是青雀大人的狗`。访客只能上传和下载，管理员可以预览、编辑、批量选择和删除。
+
+云端上传会对文档、代码和超过 100 MB 的文件尝试无损 Gzip 压缩，并在下载时恢复原文件。仓库中的 `Supabase Keep Alive` 工作流每 6 小时访问一次数据库，降低项目因长期不活跃而暂停的风险。
