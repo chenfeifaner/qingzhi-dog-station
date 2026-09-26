@@ -1,0 +1,316 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Resource Hub 是一个支持批量上传、检索、预览和下载的本地资源管理页面。">
+  <meta name="theme-color" content="#14202b">
+  <title>Resource Hub · 资源上传中心</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar" id="sidebar" aria-label="主导航">
+      <div class="sidebar__header">
+        <a class="brand" href="#upload" aria-label="Resource Hub 首页">
+          <span class="brand__mark">R</span>
+          <span class="brand__copy">
+            <strong>Resource Hub</strong>
+            <small>资源上传中心</small>
+          </span>
+        </a>
+        <button class="icon-button sidebar__close" id="sidebarClose" type="button" aria-label="关闭导航">
+          <span data-icon="x"></span>
+        </button>
+      </div>
+
+      <nav class="sidebar__nav">
+        <a class="nav-item is-active" href="#upload">
+          <span data-icon="cloud-upload"></span>
+          <span>上传资源</span>
+        </a>
+        <a class="nav-item" href="#resources">
+          <span data-icon="files"></span>
+          <span>资源列表</span>
+        </a>
+      </nav>
+
+      <div class="storage-card">
+        <div class="storage-card__head">
+          <span>存储模式</span>
+          <span class="status-dot" id="storageDot"></span>
+        </div>
+        <strong id="storageMode">正在检测</strong>
+        <p id="storageDescription">正在连接本地资源服务…</p>
+      </div>
+
+      <div class="sidebar__footer">
+        <span>LOCAL RESOURCE DESK</span>
+        <span>v1.0</span>
+      </div>
+    </aside>
+
+    <div class="sidebar-backdrop" id="sidebarBackdrop" aria-hidden="true"></div>
+
+    <main class="main">
+      <header class="topbar">
+        <button class="icon-button menu-button" id="menuButton" type="button" aria-label="打开导航" aria-expanded="false">
+          <span data-icon="menu"></span>
+        </button>
+        <div class="topbar__title">
+          <span class="topbar__eyebrow">WORKSPACE / RESOURCE DESK</span>
+          <strong>资源工作台</strong>
+        </div>
+        <div class="topbar__actions">
+          <div class="mode-badge" id="modeBadge">
+            <span class="status-dot"></span>
+            <span>正在检测存储</span>
+          </div>
+          <a class="button button-primary" href="#upload">
+            <span data-icon="plus"></span>
+            <span>添加资源</span>
+          </a>
+        </div>
+      </header>
+
+      <div class="page">
+        <section class="panel upload-panel" id="upload">
+          <div class="panel__head">
+            <div>
+              <p class="eyebrow">UPLOAD</p>
+              <h2>上传新资源</h2>
+            </div>
+            <span class="panel__note" id="uploadLimit">单文件最大 250 MB</span>
+          </div>
+
+          <div class="drop-zone" id="dropZone" tabindex="0" role="button" aria-label="选择要上传的资源">
+            <input id="fileInput" type="file" multiple hidden>
+            <span class="drop-zone__icon" data-icon="cloud-upload"></span>
+            <div class="drop-zone__copy">
+              <strong>拖放文件到这里</strong>
+              <span>或点击选择文件，支持一次添加多个资源</span>
+            </div>
+            <div class="drop-zone__actions">
+              <button class="button button-primary" id="chooseFilesButton" type="button">
+                <span data-icon="folder-open"></span>
+                <span>选择文件</span>
+              </button>
+              <button class="button button-secondary clipboard-button" id="clipboardButton" type="button">
+                <span data-icon="clipboard-paste"></span>
+                <span>从剪贴板添加</span>
+              </button>
+            </div>
+          </div>
+
+          <div class="upload-options">
+            <label class="field">
+              <span>资源分类</span>
+              <select id="categoryInput">
+                <option value="设计素材">设计素材</option>
+                <option value="开发资源">开发资源</option>
+                <option value="文档资料">文档资料</option>
+                <option value="音视频">音视频</option>
+                <option value="品牌资产">品牌资产</option>
+                <option value="其他">其他</option>
+              </select>
+            </label>
+            <label class="field field--grow">
+              <span>标签</span>
+              <input id="tagsInput" type="text" maxlength="80" placeholder="例如：首页、插画、v2">
+            </label>
+            <label class="field field--grow">
+              <span>备注</span>
+              <input id="descriptionInput" type="text" maxlength="120" placeholder="可选，说明资源用途或版本">
+            </label>
+          </div>
+
+          <div class="queue" id="queue" hidden>
+            <div class="queue__head">
+              <div>
+                <strong>待上传文件</strong>
+                <span id="queueSummary">0 个文件</span>
+              </div>
+              <button class="text-button" id="clearQueueButton" type="button">清空队列</button>
+            </div>
+            <div class="queue__list" id="queueList"></div>
+            <div class="queue__footer">
+              <div class="queue-progress" aria-hidden="true">
+                <span id="queueProgressBar"></span>
+              </div>
+              <span id="queueProgressText">准备就绪</span>
+              <button class="button button-primary" id="uploadButton" type="button">
+                <span data-icon="upload"></span>
+                <span>开始上传</span>
+              </button>
+            </div>
+          </div>
+        </section>
+
+        <section class="panel resources-panel" id="resources">
+          <div class="resources-head">
+            <div>
+              <h2>资源列表</h2>
+              <p class="resources-count" id="resourceCount">0 个资源</p>
+            </div>
+            <div class="search-box">
+              <span data-icon="search"></span>
+              <input id="searchInput" type="search" placeholder="搜索文件名称、标签或分类" aria-label="搜索资源">
+            </div>
+          </div>
+
+          <div class="resource-toolbar">
+            <div class="filter-tabs" role="tablist" aria-label="资源类型筛选">
+              <button class="filter-tab is-active" data-filter="all" type="button" role="tab" aria-selected="true">全部</button>
+              <button class="filter-tab" data-filter="image" type="button" role="tab" aria-selected="false">图片</button>
+              <button class="filter-tab" data-filter="video" type="button" role="tab" aria-selected="false">视频</button>
+              <button class="filter-tab" data-filter="audio" type="button" role="tab" aria-selected="false">音频</button>
+              <button class="filter-tab" data-filter="document" type="button" role="tab" aria-selected="false">文档</button>
+              <button class="filter-tab" data-filter="archive" type="button" role="tab" aria-selected="false">压缩包</button>
+              <button class="filter-tab" data-filter="other" type="button" role="tab" aria-selected="false">其他</button>
+            </div>
+            <label class="sort-control">
+              <span>排序</span>
+              <select id="sortSelect">
+                <option value="newest">最近上传</option>
+                <option value="oldest">最早上传</option>
+                <option value="name">文件名称</option>
+                <option value="size">文件大小</option>
+              </select>
+            </label>
+          </div>
+
+          <div class="bulk-bar" id="bulkBar" hidden>
+            <span id="bulkCount">已选择 0 个资源</span>
+            <div>
+              <button class="text-button" id="clearSelectionButton" type="button">取消选择</button>
+              <button class="button button-danger button-small" id="bulkDeleteButton" type="button">
+                <span data-icon="trash-2"></span>
+                <span>批量删除</span>
+              </button>
+            </div>
+          </div>
+
+          <div class="resource-table" id="resourceTable">
+            <div class="resource-table__head">
+              <label class="table-select">
+                <input type="checkbox" id="selectAllInput" aria-label="选择当前结果中的全部资源">
+                <span>资源</span>
+              </label>
+              <span>分类</span>
+              <span>类型</span>
+              <span>大小</span>
+              <span>上传时间</span>
+              <span>操作</span>
+            </div>
+            <div class="resource-table__body" id="resourceList"></div>
+          </div>
+
+          <div class="empty-state" id="emptyState" hidden>
+            <span data-icon="package-open"></span>
+            <strong id="emptyTitle">还没有资源</strong>
+            <p id="emptyDescription">添加第一个文件后，它会显示在这里。</p>
+          </div>
+        </section>
+
+        <footer class="page-footer">
+          <span>Resource Hub</span>
+          <span>本地优先 · 文件不会发送到第三方服务</span>
+        </footer>
+      </div>
+    </main>
+  </div>
+
+  <div class="modal" id="previewModal" aria-hidden="true">
+    <div class="modal__backdrop" data-close-modal></div>
+    <article class="modal__panel modal__panel--preview" role="dialog" aria-modal="true" aria-labelledby="previewTitle">
+      <div class="modal__head">
+        <div>
+          <span class="modal__label">资源预览</span>
+          <h2 id="previewTitle">文件预览</h2>
+        </div>
+        <button class="icon-button" type="button" data-close-modal aria-label="关闭">
+          <span data-icon="x"></span>
+        </button>
+      </div>
+      <div class="preview-area" id="previewArea"></div>
+      <div class="preview-meta" id="previewMeta"></div>
+      <div class="modal__actions">
+        <button class="button button-secondary" id="copyLinkButton" type="button" hidden>
+          <span data-icon="copy"></span>
+          <span>复制链接</span>
+        </button>
+        <button class="button button-secondary" type="button" data-close-modal>关闭</button>
+        <button class="button button-primary" id="previewDownloadButton" type="button">
+          <span data-icon="download"></span>
+          <span>下载资源</span>
+        </button>
+      </div>
+    </article>
+  </div>
+
+  <div class="modal" id="editModal" aria-hidden="true">
+    <div class="modal__backdrop" data-close-edit></div>
+    <article class="modal__panel modal__panel--edit" role="dialog" aria-modal="true" aria-labelledby="editTitle">
+      <div class="modal__head">
+        <div>
+          <span class="modal__label">资源信息</span>
+          <h2 id="editTitle">编辑资源</h2>
+        </div>
+        <button class="icon-button" type="button" data-close-edit aria-label="关闭">
+          <span data-icon="x"></span>
+        </button>
+      </div>
+      <form class="edit-form" id="editForm">
+        <input type="hidden" name="id">
+        <label class="field">
+          <span>文件名称</span>
+          <input type="text" name="name" maxlength="120" required>
+        </label>
+        <div class="form-grid">
+          <label class="field">
+            <span>资源分类</span>
+            <select name="category">
+              <option value="设计素材">设计素材</option>
+              <option value="开发资源">开发资源</option>
+              <option value="文档资料">文档资料</option>
+              <option value="音视频">音视频</option>
+              <option value="品牌资产">品牌资产</option>
+              <option value="其他">其他</option>
+            </select>
+          </label>
+          <label class="field">
+            <span>标签</span>
+            <input type="text" name="tags" maxlength="120" placeholder="使用逗号分隔">
+          </label>
+        </div>
+        <label class="field">
+          <span>备注</span>
+          <input type="text" name="description" maxlength="160" placeholder="说明资源用途或版本">
+        </label>
+        <p class="form-status" id="editStatus" role="status"></p>
+        <div class="modal__actions">
+          <button class="button button-secondary" type="button" data-close-edit>取消</button>
+          <button class="button button-primary" id="saveEditButton" type="submit">保存修改</button>
+        </div>
+      </form>
+    </article>
+  </div>
+
+  <div class="modal" id="confirmModal" aria-hidden="true">
+    <div class="modal__backdrop" data-close-confirm></div>
+    <article class="modal__panel modal__panel--confirm" role="alertdialog" aria-modal="true" aria-labelledby="confirmTitle" aria-describedby="confirmDescription">
+      <span class="confirm-icon" data-icon="trash-2"></span>
+      <h2 id="confirmTitle">删除这个资源？</h2>
+      <p id="confirmDescription">文件及其元数据会从资源库中移除，此操作无法撤销。</p>
+      <div class="modal__actions">
+        <button class="button button-secondary" type="button" data-close-confirm>取消</button>
+        <button class="button button-danger" id="confirmDeleteButton" type="button">确认删除</button>
+      </div>
+    </article>
+  </div>
+
+  <div class="toast-region" id="toastRegion" aria-live="polite" aria-atomic="true"></div>
+
+  <script src="app.js"></script>
+</body>
+</html>
