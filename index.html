@@ -6,7 +6,7 @@
   <meta name="description" content="青芝犬之站是一个支持批量上传、检索、预览和下载的资源管理页面。">
   <meta name="theme-color" content="#0b2925">
   <title>青芝犬之站 · 资源上传中心</title>
-  <link rel="stylesheet" href="styles.css?v=qingque-jade-6">
+  <link rel="stylesheet" href="styles.css?v=qingque-jade-7">
 </head>
 <body>
   <div class="app-shell">
@@ -24,7 +24,11 @@
             <span class="status-dot"></span>
             <span>正在检测存储</span>
           </div>
-          <a class="button button-primary" href="#upload">
+          <button class="button button-secondary" id="adminButton" type="button" aria-label="管理员模式">
+            <span data-icon="shield"></span>
+            <span id="adminButtonText">管理员</span>
+          </button>
+          <a class="button button-primary add-resource-button" href="#upload" aria-label="添加资源">
             <span data-icon="plus"></span>
             <span>添加资源</span>
           </a>
@@ -67,7 +71,7 @@
                 <option value="设计素材">设计素材</option>
                 <option value="开发资源">开发资源</option>
                 <option value="文档资料">文档资料</option>
-                <option value="音视频">音视频</option>
+                <option value="音视频" selected>音视频</option>
                 <option value="品牌资产">品牌资产</option>
                 <option value="其他">其他</option>
               </select>
@@ -205,6 +209,32 @@
     </article>
   </div>
 
+  <div class="modal" id="adminModal" aria-hidden="true">
+    <div class="modal__backdrop" data-close-admin></div>
+    <article class="modal__panel modal__panel--admin" role="dialog" aria-modal="true" aria-labelledby="adminTitle">
+      <div class="modal__head">
+        <div>
+          <span class="modal__label">ADMIN</span>
+          <h2 id="adminTitle">管理员验证</h2>
+        </div>
+        <button class="icon-button" type="button" data-close-admin aria-label="关闭">
+          <span data-icon="x"></span>
+        </button>
+      </div>
+      <form class="admin-form" id="adminForm">
+        <label class="field">
+          <span>管理员密码</span>
+          <input type="password" name="password" autocomplete="current-password" required placeholder="请输入管理员密码">
+        </label>
+        <p class="form-status" id="adminStatus" role="status"></p>
+        <div class="modal__actions">
+          <button class="button button-secondary" type="button" data-close-admin>取消</button>
+          <button class="button button-primary" id="adminLoginButton" type="submit">进入管理模式</button>
+        </div>
+      </form>
+    </article>
+  </div>
+
   <div class="modal" id="editModal" aria-hidden="true">
     <div class="modal__backdrop" data-close-edit></div>
     <article class="modal__panel modal__panel--edit" role="dialog" aria-modal="true" aria-labelledby="editTitle">
@@ -268,6 +298,6 @@
 
   <div class="toast-region" id="toastRegion" aria-live="polite" aria-atomic="true"></div>
 
-  <script src="app.js?v=qingque-jade-6"></script>
+  <script src="app.js?v=qingque-jade-7"></script>
 </body>
 </html>
