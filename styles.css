@@ -326,6 +326,12 @@ select:focus-visible,
   background: var(--surface-soft);
 }
 
+.button-secondary.is-active {
+  border-color: #1f8a70;
+  background: rgba(31, 138, 112, 0.14);
+  color: #155c4c;
+}
+
 .button-danger {
   border-color: var(--red);
   background: var(--red);
@@ -1075,6 +1081,11 @@ select:focus-visible,
   padding: 22px;
 }
 
+.modal__panel--admin {
+  width: min(440px, 100%);
+  padding: 24px;
+}
+
 .modal__panel--confirm {
   display: grid;
   justify-items: center;
@@ -1231,6 +1242,11 @@ select:focus-visible,
 }
 
 .edit-form {
+  display: grid;
+  gap: 16px;
+}
+
+.admin-form {
   display: grid;
   gap: 16px;
 }
@@ -1412,11 +1428,18 @@ select:focus-visible,
     padding: 0 16px;
   }
 
-  .topbar__actions .button-secondary {
+  .topbar__actions .mode-badge {
     display: none;
   }
 
-  .topbar__actions .mode-badge {
+  #adminButton,
+  .add-resource-button {
+    width: 42px;
+    padding: 0;
+  }
+
+  #adminButton span:last-child,
+  .add-resource-button span:last-child {
     display: none;
   }
 
