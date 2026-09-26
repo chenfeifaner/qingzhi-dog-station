@@ -665,6 +665,7 @@ function renderResources() {
 
   elements.resourceList.innerHTML = resources.map((resource) => {
     const tags = resource.tags.length ? ` · ${resource.tags.slice(0, 2).join(" / ")}` : "";
+    const playable = ["image", "video", "audio"].includes(resource.kind);
     const selection = state.isAdmin
       ? `<label class="resource-select" aria-label="选择 ${escapeHTML(resource.name)}">
           <input type="checkbox" data-select-resource="${escapeHTML(resource.id)}" ${state.selectedIds.has(resource.id) ? "checked" : ""}>
@@ -686,7 +687,7 @@ function renderResources() {
         </button>`
       : "";
     return `
-      <article class="resource-row" data-resource-id="${escapeHTML(resource.id)}">
+      <article class="resource-row ${playable ? "is-playable" : ""}" data-resource-id="${escapeHTML(resource.id)}" ${playable ? 'role="button" tabindex="0"' : ""}>
         <div class="resource-main">
           ${selection}
           ${resourceIconHTML(resource)}
@@ -1202,9 +1203,9 @@ function openPreview(id) {
   if (resource.kind === "image" && url) {
     preview = `<img src="${escapeHTML(url)}" alt="${escapeHTML(resource.name)}">`;
   } else if (resource.kind === "video" && url) {
-    preview = `<video src="${escapeHTML(url)}" controls playsinline preload="metadata"></video>`;
+    preview = `<video src="${escapeHTML(url)}" controls autoplay playsinline preload="metadata"></video>`;
   } else if (resource.kind === "audio" && url) {
-    preview = `<audio src="${escapeHTML(url)}" controls preload="metadata"></audio>`;
+    preview = `<audio src="${escapeHTML(url)}" controls autoplay preload="metadata"></audio>`;
   } else if (isPdf(resource) && url) {
     preview = `<iframe src="${escapeHTML(url)}" title="${escapeHTML(resource.name)}"></iframe>`;
   } else {
@@ -1232,6 +1233,12 @@ function openPreview(id) {
   elements.previewModal.classList.add("is-open");
   elements.previewModal.setAttribute("aria-hidden", "false");
   document.body.classList.add("modal-open");
+  const media = elements.previewArea.querySelector("video, audio");
+  if (media) {
+    media.play().catch(() => {
+      // Browser autoplay policies may still require a second click on the player.
+    });
+  }
 }
 
 function closePreview() {
@@ -1627,6 +1634,10 @@ function bindEvents() {
 
     const action = event.target.closest("[data-action]");
     if (!action) {
+      const playableRow = event.target.closest(".resource-row.is-playable");
+      if (playableRow) {
+        openPreview(playableRow.dataset.resourceId);
+      }
       return;
     }
     const id = action.dataset.id;
@@ -1638,6 +1649,16 @@ function bindEvents() {
       downloadResource(id);
     } else if (action.dataset.action === "delete") {
       askDelete(id);
+    }
+  });
+  elements.resourceList.addEventListener("keydown", (event) => {
+    if (event.key !== "Enter" && event.key !== " ") {
+      return;
+    }
+    const playableRow = event.target.closest(".resource-row.is-playable");
+    if (playableRow && !event.target.closest("button, input, a")) {
+      event.preventDefault();
+      openPreview(playableRow.dataset.resourceId);
     }
   });
 
