@@ -6,8 +6,11 @@
 index.html
 styles.css
 app.js
+assets/qingque-bg.jpg
 .nojekyll
 ```
+
+背景素材来源：Alpha Coders（Qingque Honkai: Star Rail Wallpaper）。
 
 ## 使用 GitHub 网页发布
 
