@@ -23,3 +23,7 @@ assets/qingque-bg.jpg
 7. 等待发布完成后访问 `https://用户名.github.io/仓库名/`。
 
 GitHub Pages 只能托管静态页面。资源会在访问者自己的浏览器中保存，不能在不同访客之间共享。如果需要共享上传，需要接入 Supabase 或其他后端存储。
+
+## Supabase 动态模式
+
+在 Supabase 的 SQL Editor 中执行 `supabase-setup.sql`。页面会自动检测 `resource_items` 数据表与 `resource-files` 存储桶；配置成功后，所有访客会读取同一份云端资源列表。
