@@ -10,57 +10,15 @@
 </head>
 <body>
   <div class="app-shell">
-    <aside class="sidebar" id="sidebar" aria-label="主导航">
-      <div class="sidebar__header">
+    <main class="main">
+      <header class="topbar">
         <a class="brand" href="#upload" aria-label="青芝犬之站首页">
-          <span class="brand__mark">R</span>
+          <span class="brand__mark">青</span>
           <span class="brand__copy">
             <strong>青芝犬之站</strong>
             <small>QINGZHI DOG</small>
           </span>
         </a>
-        <button class="icon-button sidebar__close" id="sidebarClose" type="button" aria-label="关闭导航">
-          <span data-icon="x"></span>
-        </button>
-      </div>
-
-      <nav class="sidebar__nav">
-        <a class="nav-item is-active" href="#upload">
-          <span data-icon="cloud-upload"></span>
-          <span>上传资源</span>
-        </a>
-        <a class="nav-item" href="#resources">
-          <span data-icon="files"></span>
-          <span>资源列表</span>
-        </a>
-      </nav>
-
-      <div class="storage-card">
-        <div class="storage-card__head">
-          <span>存储模式</span>
-          <span class="status-dot" id="storageDot"></span>
-        </div>
-        <strong id="storageMode">正在检测</strong>
-        <p id="storageDescription">正在连接本地资源服务…</p>
-      </div>
-
-      <div class="sidebar__footer">
-        <span>QINGZHI DOG RESOURCE DESK</span>
-        <span>v1.0</span>
-      </div>
-    </aside>
-
-    <div class="sidebar-backdrop" id="sidebarBackdrop" aria-hidden="true"></div>
-
-    <main class="main">
-      <header class="topbar">
-        <button class="icon-button menu-button" id="menuButton" type="button" aria-label="打开导航" aria-expanded="false">
-          <span data-icon="menu"></span>
-        </button>
-        <div class="topbar__title">
-          <span class="topbar__eyebrow">WORKSPACE / RESOURCE DESK</span>
-          <strong>资源工作台</strong>
-        </div>
         <div class="topbar__actions">
           <div class="mode-badge" id="modeBadge">
             <span class="status-dot"></span>
