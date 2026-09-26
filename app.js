@@ -43,6 +43,7 @@ const LOCAL_LIMIT = 100 * 1024 * 1024;
 const SUPABASE_SOURCE_LIMIT = 250 * 1024 * 1024;
 const SUPABASE_UPLOAD_LIMIT = 100 * 1024 * 1024;
 const ADMIN_PASSWORD = "我是青雀大人的狗";
+const ADMIN_PASSWORD_PINYIN = "woshiqingquedarendegou";
 const ADMIN_SESSION_KEY = "qingzhi_admin_session";
 const SUPABASE_URL = "https://vdihfdrylanbfyrhvnnl.supabase.co";
 const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_rMzNSWTBYgTa13AMLUgieQ_fq-RnPHY";
@@ -318,7 +319,8 @@ function closeAdminModal() {
 function submitAdmin(event) {
   event.preventDefault();
   const password = elements.adminForm.elements.password.value;
-  if (password !== ADMIN_PASSWORD) {
+  const normalizedPassword = password.trim().toLowerCase().replace(/[\s-]+/g, "");
+  if (password !== ADMIN_PASSWORD && normalizedPassword !== ADMIN_PASSWORD_PINYIN) {
     elements.adminStatus.textContent = "密码错误。";
     return;
   }
