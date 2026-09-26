@@ -39,6 +39,11 @@ const DB_NAME = "resource-hub-v1";
 const DB_STORE = "resources";
 const SERVER_LIMIT = 250 * 1024 * 1024;
 const LOCAL_LIMIT = 100 * 1024 * 1024;
+const SUPABASE_URL = "https://baupiwngwhyrzgybymal.supabase.co";
+const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_YCN5V1Haoq7URzSoNJzBAw_rEgE2sGT";
+const SUPABASE_TABLE = "resource_items";
+const SUPABASE_BUCKET = "resource-files";
+const SUPABASE_ENABLED = Boolean(SUPABASE_URL && SUPABASE_PUBLISHABLE_KEY);
 
 const state = {
   mode: "detecting",
@@ -269,6 +274,13 @@ function setStorageMode(mode) {
     return;
   }
 
+  if (mode === "supabase") {
+    badgeDot.classList.add("is-online");
+    badgeText.textContent = "云端动态模式";
+    elements.uploadLimit.textContent = "单文件最大 100 MB";
+    return;
+  }
+
   if (mode === "local") {
     badgeDot.classList.add("is-local");
     badgeText.textContent = "浏览器本地模式";
@@ -298,7 +310,7 @@ async function detectStorageMode() {
     }
     setStorageMode("server");
   } catch (error) {
-    setStorageMode("local");
+    setStorageMode(SUPABASE_ENABLED ? "supabase" : "local");
   }
 }
 
@@ -310,6 +322,18 @@ async function fetchWithTimeout(url, options = {}, timeout = 8000) {
   } finally {
     window.clearTimeout(timer);
   }
+}
+
+function supabaseHeaders(extra = {}) {
+  return {
+    apikey: SUPABASE_PUBLISHABLE_KEY,
+    Authorization: `Bearer ${SUPABASE_PUBLISHABLE_KEY}`,
+    ...extra
+  };
+}
+
+function supabasePublicFileUrl(path) {
+  return `${SUPABASE_URL}/storage/v1/object/public/${SUPABASE_BUCKET}/${path}`;
 }
 
 function openDatabase() {
@@ -379,6 +403,23 @@ async function loadResources() {
       }
       const payload = await response.json();
       resources = Array.isArray(payload.resources) ? payload.resources : [];
+    } else if (state.mode === "supabase") {
+      const response = await fetchWithTimeout(
+        `${SUPABASE_URL}/rest/v1/${SUPABASE_TABLE}?select=*&order=uploaded_at.desc`,
+        { headers: supabaseHeaders(), cache: "no-store" },
+        12000
+      );
+      if (!response.ok) {
+        const detail = await response.text();
+        throw new Error(`Supabase table unavailable: ${detail.slice(0, 120)}`);
+      }
+      resources = await response.json();
+      resources = resources.map((resource) => ({
+        ...resource,
+        url: resource.file_url,
+        filePath: resource.file_path,
+        uploadedAt: resource.uploaded_at
+      }));
     } else if (state.mode === "local") {
       resources = await getAllLocalResources();
     } else {
@@ -391,6 +432,19 @@ async function loadResources() {
     state.selectedIds.clear();
     renderAll();
   } catch (error) {
+    if (state.mode === "supabase") {
+      try {
+        await openDatabase();
+        state.resources = (await getAllLocalResources()).map(normalizeResource).filter(Boolean);
+        state.selectedIds.clear();
+        setStorageMode("local");
+        renderAll();
+        showToast("云端数据库未就绪", "已切换到当前浏览器存储，请先执行 Supabase 初始化 SQL", "error");
+        return;
+      } catch (fallbackError) {
+        // Fall through to the normal error message.
+      }
+    }
     showToast("读取资源失败", error.message || "请稍后重试", "error");
   }
 }
@@ -399,15 +453,23 @@ function normalizeResource(resource) {
   if (!resource || !resource.id) {
     return null;
   }
-  const fallbackFile = { name: resource.name || "未命名资源", type: resource.mime || "" };
+  const name = resource.name || resource.title || "未命名资源";
+  const fallbackFile = { name, type: resource.mime || "" };
+  const tags = Array.isArray(resource.tags)
+    ? resource.tags
+    : typeof resource.tags === "string"
+      ? resource.tags.split(",").map((tag) => tag.trim()).filter(Boolean)
+      : [];
   return {
     ...resource,
-    name: resource.name || "未命名资源",
+    name,
     kind: resource.kind || getKind(fallbackFile),
     category: resource.category || "其他",
-    tags: Array.isArray(resource.tags) ? resource.tags : [],
-    size: Number(resource.size) || 0,
-    uploadedAt: resource.uploadedAt || new Date().toISOString()
+    tags,
+    size: Number(resource.size || resource.fileSize) || 0,
+    url: resource.url || resource.file_url || "",
+    filePath: resource.filePath || resource.file_path || "",
+    uploadedAt: resource.uploadedAt || resource.uploaded_at || new Date().toISOString()
   };
 }
 
@@ -803,12 +865,97 @@ async function uploadLocally(item) {
   return resource;
 }
 
+function uploadToSupabase(item) {
+  return new Promise((resolve, reject) => {
+    const metadata = uploadMetadata(item.file);
+    const id = createId();
+    const extension = (item.file.name.match(/\.[a-zA-Z0-9]+$/) || [""])[0].toLowerCase();
+    const objectPath = `${id}/${id}${extension}`;
+    const uploadUrl = `${SUPABASE_URL}/storage/v1/object/${SUPABASE_BUCKET}/${objectPath}`;
+    const xhr = new XMLHttpRequest();
+    xhr.open("POST", uploadUrl);
+    xhr.setRequestHeader("apikey", SUPABASE_PUBLISHABLE_KEY);
+    xhr.setRequestHeader("Authorization", `Bearer ${SUPABASE_PUBLISHABLE_KEY}`);
+    xhr.setRequestHeader("Content-Type", item.file.type || "application/octet-stream");
+    xhr.setRequestHeader("x-upsert", "false");
+    xhr.upload.onprogress = (event) => {
+      if (event.lengthComputable) {
+        updateQueueItem(item.id, {
+          status: "uploading",
+          progress: Math.min(94, (event.loaded / event.total) * 100)
+        });
+      }
+    };
+    xhr.onerror = () => reject(new Error("云端存储连接中断"));
+    xhr.onabort = () => reject(new Error("上传已取消"));
+    xhr.onload = async () => {
+      if (xhr.status < 200 || xhr.status >= 300) {
+        reject(new Error(`文件上传失败（${xhr.status}）`));
+        return;
+      }
+
+      const fileUrl = supabasePublicFileUrl(objectPath);
+      const row = {
+        id,
+        name: item.file.name,
+        category: metadata.category,
+        tags: metadata.tags,
+        description: metadata.description,
+        kind: item.kind,
+        mime: item.file.type || "application/octet-stream",
+        size: item.file.size,
+        file_url: fileUrl,
+        file_path: objectPath
+      };
+
+      try {
+        updateQueueItem(item.id, { progress: 97 });
+        const response = await fetchWithTimeout(`${SUPABASE_URL}/rest/v1/${SUPABASE_TABLE}`, {
+          method: "POST",
+          headers: supabaseHeaders({
+            "Content-Type": "application/json",
+            Prefer: "return=representation"
+          }),
+          body: JSON.stringify(row)
+        }, 15000);
+        if (!response.ok) {
+          const detail = await response.text();
+          throw new Error(`资源信息保存失败：${detail.slice(0, 140)}`);
+        }
+        const inserted = await response.json();
+        const saved = Array.isArray(inserted) ? inserted[0] : row;
+        resolve({ ...saved, url: fileUrl, filePath: objectPath });
+      } catch (error) {
+        removeSupabaseObject({ filePath: objectPath }).catch(() => {});
+        reject(error);
+      }
+    };
+    xhr.send(item.file);
+  });
+}
+
+async function removeSupabaseObject(resource) {
+  if (!resource || !resource.filePath) {
+    return;
+  }
+  await fetchWithTimeout(`${SUPABASE_URL}/storage/v1/object/${SUPABASE_BUCKET}`, {
+    method: "DELETE",
+    headers: supabaseHeaders({ "Content-Type": "application/json" }),
+    body: JSON.stringify({ prefixes: [resource.filePath] })
+  }, 12000);
+}
+
 async function uploadOne(item) {
   updateQueueItem(item.id, { status: "uploading", progress: 1, error: "" });
   try {
-    const resource = state.mode === "server"
-      ? await uploadWithProgress(item)
-      : await uploadLocally(item);
+    let resource;
+    if (state.mode === "server") {
+      resource = await uploadWithProgress(item);
+    } else if (state.mode === "supabase") {
+      resource = await uploadToSupabase(item);
+    } else {
+      resource = await uploadLocally(item);
+    }
     const normalized = normalizeResource(resource);
     state.resources = [normalized, ...state.resources.filter((entry) => entry.id !== normalized.id)];
     updateQueueItem(item.id, { status: "done", progress: 100, error: "" });
@@ -908,7 +1055,7 @@ function openPreview(id) {
     <div class="preview-meta__item"><span>备注</span><strong title="${escapeHTML(resource.description || "无")}">${escapeHTML(resource.description || "无")}</strong></div>
   `;
   hydrateIcons(elements.previewArea);
-  elements.copyLinkButton.hidden = state.mode !== "server" || !resource.url;
+  elements.copyLinkButton.hidden = !["server", "supabase"].includes(state.mode) || !resource.url;
   elements.previewModal.classList.add("is-open");
   elements.previewModal.setAttribute("aria-hidden", "false");
   document.body.classList.add("modal-open");
@@ -943,7 +1090,7 @@ async function copyText(value) {
 
 async function copyResourceLink() {
   const resource = findResource(state.previewId);
-  if (!resource || state.mode !== "server" || !resource.url) {
+  if (!resource || !["server", "supabase"].includes(state.mode) || !resource.url) {
     showToast("当前资源没有可复制的链接", "浏览器本地模式不提供公开链接", "error");
     return;
   }
@@ -1031,6 +1178,25 @@ async function saveEdit(event) {
         throw new Error(payload.error || "保存失败");
       }
       savedResource = payload.resource;
+    } else if (state.mode === "supabase") {
+      const response = await fetchWithTimeout(
+        `${SUPABASE_URL}/rest/v1/${SUPABASE_TABLE}?id=eq.${encodeURIComponent(resource.id)}`,
+        {
+          method: "PATCH",
+          headers: supabaseHeaders({
+            "Content-Type": "application/json",
+            Prefer: "return=representation"
+          }),
+          body: JSON.stringify(updates)
+        },
+        12000
+      );
+      if (!response.ok) {
+        const detail = await response.text();
+        throw new Error(`保存失败：${detail.slice(0, 140)}`);
+      }
+      const updated = await response.json();
+      savedResource = Array.isArray(updated) ? updated[0] : { ...resource, ...updates };
     } else {
       savedResource = { ...resource, ...updates };
       await putLocalResource(savedResource);
@@ -1102,6 +1268,21 @@ async function deleteResources(ids) {
           const payload = await response.json().catch(() => ({}));
           if (!response.ok || !payload.deleted) {
             throw new Error(payload.error || "删除失败");
+          }
+        } else if (state.mode === "supabase") {
+          const resource = findResource(id);
+          await removeSupabaseObject(resource);
+          const response = await fetchWithTimeout(
+            `${SUPABASE_URL}/rest/v1/${SUPABASE_TABLE}?id=eq.${encodeURIComponent(id)}`,
+            {
+              method: "DELETE",
+              headers: supabaseHeaders({ Prefer: "return=minimal" })
+            },
+            12000
+          );
+          if (!response.ok) {
+            const detail = await response.text();
+            throw new Error(`删除失败：${detail.slice(0, 140)}`);
           }
         } else {
           await removeLocalResource(id);
