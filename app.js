@@ -18,6 +18,7 @@ const ICONS = {
   "pencil": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"/><path d="m15 5 4 4"/></svg>',
   "plus": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg>',
   "search": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>',
+  "shield": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M20 13c0 5-3.5 7.5-8 9-4.5-1.5-8-4-8-9V5l8-3 8 3Z"/><path d="M12 8v4"/><path d="M12 16h.01"/></svg>',
   "trash-2": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg>',
   "upload": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="m17 8-5-5-5 5"/><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/></svg>',
   "x": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>'
@@ -39,11 +40,31 @@ const DB_NAME = "resource-hub-v1";
 const DB_STORE = "resources";
 const SERVER_LIMIT = 250 * 1024 * 1024;
 const LOCAL_LIMIT = 100 * 1024 * 1024;
+const SUPABASE_SOURCE_LIMIT = 250 * 1024 * 1024;
+const SUPABASE_UPLOAD_LIMIT = 100 * 1024 * 1024;
+const ADMIN_PASSWORD = "我是青雀大人的狗";
+const ADMIN_SESSION_KEY = "qingzhi_admin_session";
 const SUPABASE_URL = "https://vdihfdrylanbfyrhvnnl.supabase.co";
 const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_rMzNSWTBYgTa13AMLUgieQ_fq-RnPHY";
 const SUPABASE_TABLE = "resource_items";
 const SUPABASE_BUCKET = "resource-files";
 const SUPABASE_ENABLED = Boolean(SUPABASE_URL && SUPABASE_PUBLISHABLE_KEY);
+
+function readAdminSession() {
+  try {
+    return sessionStorage.getItem(ADMIN_SESSION_KEY) === "true";
+  } catch (error) {
+    return false;
+  }
+}
+
+function writeAdminSession(enabled) {
+  try {
+    sessionStorage.setItem(ADMIN_SESSION_KEY, String(enabled));
+  } catch (error) {
+    // Session storage can be unavailable in locked-down browsing contexts.
+  }
+}
 
 const state = {
   mode: "detecting",
@@ -53,6 +74,7 @@ const state = {
   search: "",
   sort: "newest",
   activeUpload: false,
+  isAdmin: readAdminSession(),
   selectedIds: new Set(),
   pendingDeleteIds: [],
   previewId: "",
@@ -62,6 +84,8 @@ const state = {
 
 const elements = {
   modeBadge: document.getElementById("modeBadge"),
+  adminButton: document.getElementById("adminButton"),
+  adminButtonText: document.getElementById("adminButtonText"),
   uploadLimit: document.getElementById("uploadLimit"),
   dropZone: document.getElementById("dropZone"),
   fileInput: document.getElementById("fileInput"),
@@ -96,6 +120,10 @@ const elements = {
   previewMeta: document.getElementById("previewMeta"),
   previewDownloadButton: document.getElementById("previewDownloadButton"),
   copyLinkButton: document.getElementById("copyLinkButton"),
+  adminModal: document.getElementById("adminModal"),
+  adminForm: document.getElementById("adminForm"),
+  adminStatus: document.getElementById("adminStatus"),
+  adminLoginButton: document.getElementById("adminLoginButton"),
   editModal: document.getElementById("editModal"),
   editForm: document.getElementById("editForm"),
   editTitle: document.getElementById("editTitle"),
@@ -260,6 +288,44 @@ function showToast(title, detail = "", type = "success") {
   }, 3200);
 }
 
+function setAdminMode(enabled) {
+  state.isAdmin = enabled;
+  writeAdminSession(enabled);
+  elements.adminButtonText.textContent = enabled ? "退出管理" : "管理员";
+  elements.adminButton.setAttribute("aria-label", enabled ? "退出管理员模式" : "管理员模式");
+  elements.adminButton.classList.toggle("is-active", enabled);
+  state.selectedIds.clear();
+  renderResources();
+  showToast(enabled ? "管理员模式已开启" : "管理员模式已退出", enabled ? "现在可以编辑和删除资源" : "当前为访客模式");
+}
+
+function openAdminModal() {
+  elements.adminForm.reset();
+  elements.adminStatus.textContent = "";
+  elements.adminModal.classList.add("is-open");
+  elements.adminModal.setAttribute("aria-hidden", "false");
+  document.body.classList.add("modal-open");
+  window.setTimeout(() => elements.adminForm.elements.password.focus(), 0);
+}
+
+function closeAdminModal() {
+  elements.adminModal.classList.remove("is-open");
+  elements.adminModal.setAttribute("aria-hidden", "true");
+  elements.adminStatus.textContent = "";
+  syncModalOpenState();
+}
+
+function submitAdmin(event) {
+  event.preventDefault();
+  const password = elements.adminForm.elements.password.value;
+  if (password !== ADMIN_PASSWORD) {
+    elements.adminStatus.textContent = "密码错误。";
+    return;
+  }
+  closeAdminModal();
+  setAdminMode(true);
+}
+
 function setStorageMode(mode) {
   state.mode = mode;
   const badgeText = elements.modeBadge.querySelector("span:last-child");
@@ -334,6 +400,39 @@ function supabaseHeaders(extra = {}) {
 
 function supabasePublicFileUrl(path) {
   return `${SUPABASE_URL}/storage/v1/object/public/${SUPABASE_BUCKET}/${path}`;
+}
+
+let supabaseKeepAliveTimer = null;
+let lastSupabasePing = 0;
+
+async function pingSupabaseKeepAlive() {
+  if (state.mode !== "supabase") {
+    return;
+  }
+  try {
+    await fetchWithTimeout(
+      `${SUPABASE_URL}/rest/v1/${SUPABASE_TABLE}?select=id&limit=1`,
+      { headers: supabaseHeaders(), cache: "no-store" },
+      10000
+    );
+    lastSupabasePing = Date.now();
+  } catch (error) {
+    // Keep-alive failures are intentionally silent.
+  }
+}
+
+function startSupabaseKeepAlive() {
+  if (state.mode !== "supabase") {
+    return;
+  }
+  window.clearInterval(supabaseKeepAliveTimer);
+  pingSupabaseKeepAlive();
+  supabaseKeepAliveTimer = window.setInterval(pingSupabaseKeepAlive, 6 * 60 * 60 * 1000);
+  document.addEventListener("visibilitychange", () => {
+    if (!document.hidden && Date.now() - lastSupabasePing > 6 * 60 * 60 * 1000) {
+      pingSupabaseKeepAlive();
+    }
+  });
 }
 
 function openDatabase() {
@@ -460,6 +559,8 @@ function normalizeResource(resource) {
     : typeof resource.tags === "string"
       ? resource.tags.split(",").map((tag) => tag.trim()).filter(Boolean)
       : [];
+  const filePath = resource.filePath || resource.file_path || "";
+  const compressed = resource.compressed === true || filePath.endsWith(".qzg");
   return {
     ...resource,
     name,
@@ -468,7 +569,11 @@ function normalizeResource(resource) {
     tags,
     size: Number(resource.size || resource.fileSize) || 0,
     url: resource.url || resource.file_url || "",
-    filePath: resource.filePath || resource.file_path || "",
+    filePath,
+    compressed,
+    originalName: resource.originalName || name,
+    originalMime: resource.originalMime || resource.mime || "application/octet-stream",
+    originalSize: Number(resource.originalSize || resource.size) || 0,
     uploadedAt: resource.uploadedAt || resource.uploaded_at || new Date().toISOString()
   };
 }
@@ -560,12 +665,30 @@ function renderResources() {
 
   elements.resourceList.innerHTML = resources.map((resource) => {
     const tags = resource.tags.length ? ` · ${resource.tags.slice(0, 2).join(" / ")}` : "";
+    const selection = state.isAdmin
+      ? `<label class="resource-select" aria-label="选择 ${escapeHTML(resource.name)}">
+          <input type="checkbox" data-select-resource="${escapeHTML(resource.id)}" ${state.selectedIds.has(resource.id) ? "checked" : ""}>
+        </label>`
+      : "";
+    const previewAction = state.isAdmin
+      ? `<button class="row-action" type="button" data-action="preview" data-id="${escapeHTML(resource.id)}" aria-label="预览 ${escapeHTML(resource.name)}">
+          <span data-icon="eye"></span>
+        </button>`
+      : "";
+    const editAction = state.isAdmin
+      ? `<button class="row-action" type="button" data-action="edit" data-id="${escapeHTML(resource.id)}" aria-label="编辑 ${escapeHTML(resource.name)}">
+          <span data-icon="pencil"></span>
+        </button>`
+      : "";
+    const deleteAction = state.isAdmin
+      ? `<button class="row-action row-action--danger" type="button" data-action="delete" data-id="${escapeHTML(resource.id)}" aria-label="删除 ${escapeHTML(resource.name)}">
+          <span data-icon="trash-2"></span>
+        </button>`
+      : "";
     return `
       <article class="resource-row" data-resource-id="${escapeHTML(resource.id)}">
         <div class="resource-main">
-          <label class="resource-select" aria-label="选择 ${escapeHTML(resource.name)}">
-            <input type="checkbox" data-select-resource="${escapeHTML(resource.id)}" ${state.selectedIds.has(resource.id) ? "checked" : ""}>
-          </label>
+          ${selection}
           ${resourceIconHTML(resource)}
           <div class="resource-main__copy">
             <strong title="${escapeHTML(resource.name)}">${escapeHTML(resource.name)}</strong>
@@ -576,18 +699,12 @@ function renderResources() {
         <span class="resource-cell"><span class="type-chip type-chip--${escapeHTML(resource.kind)}">${escapeHTML(typeLabel(resource.kind))}</span></span>
         <span class="resource-cell">${escapeHTML(formatDate(resource.uploadedAt))}</span>
         <span class="resource-actions">
-          <button class="row-action" type="button" data-action="preview" data-id="${escapeHTML(resource.id)}" aria-label="预览 ${escapeHTML(resource.name)}">
-            <span data-icon="eye"></span>
-          </button>
-          <button class="row-action" type="button" data-action="edit" data-id="${escapeHTML(resource.id)}" aria-label="编辑 ${escapeHTML(resource.name)}">
-            <span data-icon="pencil"></span>
-          </button>
+          ${previewAction}
+          ${editAction}
           <button class="row-action" type="button" data-action="download" data-id="${escapeHTML(resource.id)}" aria-label="下载 ${escapeHTML(resource.name)}">
             <span data-icon="download"></span>
           </button>
-          <button class="row-action row-action--danger" type="button" data-action="delete" data-id="${escapeHTML(resource.id)}" aria-label="删除 ${escapeHTML(resource.name)}">
-            <span data-icon="trash-2"></span>
-          </button>
+          ${deleteAction}
         </span>
       </article>
     `;
@@ -600,8 +717,10 @@ function renderResources() {
 function syncSelection(visibleResources = filteredResources()) {
   const selectedCount = state.selectedIds.size;
   const visibleSelected = visibleResources.filter((resource) => state.selectedIds.has(resource.id)).length;
+  const selectAllWrapper = elements.selectAllInput.closest(".table-select");
 
-  elements.bulkBar.hidden = selectedCount === 0;
+  selectAllWrapper.hidden = !state.isAdmin;
+  elements.bulkBar.hidden = !state.isAdmin || selectedCount === 0;
   elements.bulkCount.textContent = `已选择 ${selectedCount} 个资源`;
   elements.selectAllInput.checked = visibleResources.length > 0 && visibleSelected === visibleResources.length;
   elements.selectAllInput.indeterminate = visibleSelected > 0 && visibleSelected < visibleResources.length;
@@ -638,7 +757,11 @@ function addFiles(fileList) {
     return;
   }
 
-  const limit = state.mode === "server" ? SERVER_LIMIT : LOCAL_LIMIT;
+  const limit = state.mode === "server"
+    ? SERVER_LIMIT
+    : state.mode === "supabase"
+      ? SUPABASE_SOURCE_LIMIT
+      : LOCAL_LIMIT;
   const queuedKeys = new Set(state.queue.map((item) => `${item.file.name}:${item.file.size}:${item.file.lastModified}`));
   const existingKeys = new Set(state.resources.map((resource) => `${resource.name}:${resource.size}`));
   let added = 0;
@@ -865,18 +988,68 @@ async function uploadLocally(item) {
   return resource;
 }
 
-function uploadToSupabase(item) {
+async function gzipFile(file) {
+  if (typeof CompressionStream !== "function") {
+    throw new Error("当前浏览器不支持无损压缩");
+  }
+  const compressedStream = file.stream().pipeThrough(new CompressionStream("gzip"));
+  const compressedBlob = await new Response(compressedStream).blob();
+  return new File([compressedBlob], `${file.name}.gz`, {
+    type: "application/gzip",
+    lastModified: file.lastModified
+  });
+}
+
+async function prepareSupabaseUpload(file) {
+  const original = {
+    blob: file,
+    compressed: false,
+    originalName: file.name,
+    originalMime: file.type || "application/octet-stream",
+    originalSize: file.size
+  };
+  const compressibleKinds = ["document", "code", "other"];
+  const shouldAttempt = file.size > SUPABASE_UPLOAD_LIMIT || compressibleKinds.includes(getKind(file));
+  if (!shouldAttempt) {
+    return original;
+  }
+
+  try {
+    const compressedFile = await gzipFile(file);
+    if (file.size <= SUPABASE_UPLOAD_LIMIT && compressedFile.size >= file.size * 0.97) {
+      return original;
+    }
+    if (compressedFile.size > SUPABASE_UPLOAD_LIMIT) {
+      throw new Error(`压缩后仍为 ${formatBytes(compressedFile.size)}，超过 100 MB 云端上限`);
+    }
+    return {
+      blob: compressedFile,
+      compressed: true,
+      originalName: file.name,
+      originalMime: file.type || "application/octet-stream",
+      originalSize: file.size
+    };
+  } catch (error) {
+    if (error && error.message && error.message.includes("超过")) {
+      throw error;
+    }
+    throw new Error(`文件超过 100 MB，且无法无损压缩：${error.message || "压缩失败"}`);
+  }
+}
+
+async function uploadToSupabase(item) {
+  const prepared = await prepareSupabaseUpload(item.file);
   return new Promise((resolve, reject) => {
     const metadata = uploadMetadata(item.file);
     const id = createId();
     const extension = (item.file.name.match(/\.[a-zA-Z0-9]+$/) || [""])[0].toLowerCase();
-    const objectPath = `${id}/${id}${extension}`;
+    const objectPath = `${id}/${id}${extension}${prepared.compressed ? ".qzg" : ""}`;
     const uploadUrl = `${SUPABASE_URL}/storage/v1/object/${SUPABASE_BUCKET}/${objectPath}`;
     const xhr = new XMLHttpRequest();
     xhr.open("POST", uploadUrl);
     xhr.setRequestHeader("apikey", SUPABASE_PUBLISHABLE_KEY);
     xhr.setRequestHeader("Authorization", `Bearer ${SUPABASE_PUBLISHABLE_KEY}`);
-    xhr.setRequestHeader("Content-Type", item.file.type || "application/octet-stream");
+    xhr.setRequestHeader("Content-Type", prepared.blob.type || "application/octet-stream");
     xhr.setRequestHeader("x-upsert", "false");
     xhr.upload.onprogress = (event) => {
       if (event.lengthComputable) {
@@ -902,8 +1075,8 @@ function uploadToSupabase(item) {
         tags: metadata.tags,
         description: metadata.description,
         kind: item.kind,
-        mime: item.file.type || "application/octet-stream",
-        size: item.file.size,
+        mime: prepared.originalMime,
+        size: prepared.originalSize,
         file_url: fileUrl,
         file_path: objectPath
       };
@@ -930,7 +1103,7 @@ function uploadToSupabase(item) {
         reject(error);
       }
     };
-    xhr.send(item.file);
+    xhr.send(prepared.blob);
   });
 }
 
@@ -1311,11 +1484,48 @@ async function deleteResources(ids) {
   }
 }
 
-function downloadResource(id) {
+async function decompressBlob(blob) {
+  if (typeof DecompressionStream !== "function") {
+    throw new Error("当前浏览器不支持恢复压缩文件");
+  }
+  const decompressedStream = blob.stream().pipeThrough(new DecompressionStream("gzip"));
+  return new Response(decompressedStream).blob();
+}
+
+function saveBlob(blob, filename) {
+  const objectUrl = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = objectUrl;
+  anchor.download = filename || "resource";
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  window.setTimeout(() => URL.revokeObjectURL(objectUrl), 12000);
+}
+
+async function downloadResource(id) {
   const resource = findResource(id);
   if (!resource) {
     return;
   }
+
+  if (state.mode === "supabase" && resource.compressed && resource.url) {
+    try {
+      showToast("正在恢复原文件", "下载前会自动解压");
+      const response = await fetchWithTimeout(resource.url, {}, 120000);
+      if (!response.ok) {
+        throw new Error("云端文件读取失败");
+      }
+      const compressedBlob = await response.blob();
+      const originalBlob = await decompressBlob(compressedBlob);
+      saveBlob(originalBlob, resource.originalName || resource.name);
+      showToast("原文件已恢复", resource.originalName || resource.name);
+    } catch (error) {
+      showToast("下载失败", error.message || "无法恢复原文件", "error");
+    }
+    return;
+  }
+
   const url = getObjectUrl(resource);
   if (!url) {
     showToast("无法下载", "资源地址不可用", "error");
@@ -1342,6 +1552,14 @@ function setFilter(filter) {
 }
 
 function bindEvents() {
+  elements.adminButton.addEventListener("click", () => {
+    if (state.isAdmin) {
+      setAdminMode(false);
+    } else {
+      openAdminModal();
+    }
+  });
+  elements.adminForm.addEventListener("submit", submitAdmin);
   elements.chooseFilesButton.addEventListener("click", (event) => {
     event.stopPropagation();
     elements.fileInput.click();
@@ -1445,6 +1663,9 @@ function bindEvents() {
   document.querySelectorAll("[data-close-edit]").forEach((trigger) => {
     trigger.addEventListener("click", closeEdit);
   });
+  document.querySelectorAll("[data-close-admin]").forEach((trigger) => {
+    trigger.addEventListener("click", closeAdminModal);
+  });
 
   document.addEventListener("keydown", (event) => {
     if (event.key !== "Escape") {
@@ -1452,6 +1673,8 @@ function bindEvents() {
     }
     if (elements.confirmModal.classList.contains("is-open")) {
       closeDeleteConfirm();
+    } else if (elements.adminModal.classList.contains("is-open")) {
+      closeAdminModal();
     } else if (elements.editModal.classList.contains("is-open")) {
       closeEdit();
     } else if (elements.previewModal.classList.contains("is-open")) {
@@ -1462,6 +1685,9 @@ function bindEvents() {
 
 async function init() {
   hydrateIcons();
+  elements.adminButtonText.textContent = state.isAdmin ? "退出管理" : "管理员";
+  elements.adminButton.setAttribute("aria-label", state.isAdmin ? "退出管理员模式" : "管理员模式");
+  elements.adminButton.classList.toggle("is-active", state.isAdmin);
   bindEvents();
   await detectStorageMode();
   if (state.mode === "local") {
@@ -1474,6 +1700,7 @@ async function init() {
     }
   }
   await loadResources();
+  startSupabaseKeepAlive();
 }
 
 init();
