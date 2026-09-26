@@ -507,12 +507,11 @@ function renderResources() {
           ${resourceIconHTML(resource)}
           <div class="resource-main__copy">
             <strong title="${escapeHTML(resource.name)}">${escapeHTML(resource.name)}</strong>
-            <span title="${escapeHTML(resource.description || "")}">${escapeHTML(resource.mime || "未知类型")}${escapeHTML(tags)}</span>
+            <span title="${escapeHTML(resource.description || "")}">${escapeHTML(formatBytes(resource.size))} · ${escapeHTML(resource.mime || "未知类型")}${escapeHTML(tags)}</span>
           </div>
         </div>
         <span class="resource-cell"><span class="category-chip">${escapeHTML(resource.category)}</span></span>
         <span class="resource-cell"><span class="type-chip type-chip--${escapeHTML(resource.kind)}">${escapeHTML(typeLabel(resource.kind))}</span></span>
-        <span class="resource-cell">${escapeHTML(formatBytes(resource.size))}</span>
         <span class="resource-cell">${escapeHTML(formatDate(resource.uploadedAt))}</span>
         <span class="resource-actions">
           <button class="row-action" type="button" data-action="preview" data-id="${escapeHTML(resource.id)}" aria-label="预览 ${escapeHTML(resource.name)}">
