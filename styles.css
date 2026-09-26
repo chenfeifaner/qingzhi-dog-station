@@ -866,6 +866,15 @@ select:focus-visible,
   background: rgba(255, 255, 255, 0.48);
 }
 
+.resource-row.is-playable {
+  cursor: pointer;
+}
+
+.resource-row.is-playable:focus-visible {
+  outline: 3px solid rgba(31, 138, 112, 0.28);
+  outline-offset: -3px;
+}
+
 .resource-main {
   display: flex;
   align-items: center;
@@ -1267,7 +1276,7 @@ select:focus-visible,
 .toast-region {
   position: fixed;
   right: 22px;
-  bottom: 22px;
+  bottom: 82px;
   z-index: 100;
   display: grid;
   gap: 10px;
@@ -1346,6 +1355,27 @@ select:focus-visible,
 
   .page-footer {
     grid-column: auto;
+  }
+}
+
+@media (min-width: 681px) {
+  #adminButton {
+    position: fixed;
+    right: 24px;
+    bottom: 24px;
+    z-index: 70;
+    min-width: 118px;
+    min-height: 46px;
+    border-color: rgba(207, 236, 225, 0.82);
+    background: rgba(240, 252, 247, 0.88);
+    box-shadow: 0 14px 36px rgba(4, 31, 26, 0.28);
+    backdrop-filter: blur(18px) saturate(1.25);
+  }
+
+  #adminButton.is-active {
+    border-color: #1f8a70;
+    background: rgba(31, 138, 112, 0.9);
+    color: #ffffff;
   }
 }
 
