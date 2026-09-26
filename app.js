@@ -1518,17 +1518,17 @@ async function downloadResource(id) {
     return;
   }
 
-  if (state.mode === "supabase" && resource.compressed && resource.url) {
+  if (state.mode === "supabase" && resource.url) {
     try {
-      showToast("正在恢复原文件", "下载前会自动解压");
+      showToast("正在下载到本地", resource.compressed ? "下载前会自动恢复原文件" : resource.name);
       const response = await fetchWithTimeout(resource.url, {}, 120000);
       if (!response.ok) {
         throw new Error("云端文件读取失败");
       }
-      const compressedBlob = await response.blob();
-      const originalBlob = await decompressBlob(compressedBlob);
+      const downloadedBlob = await response.blob();
+      const originalBlob = resource.compressed ? await decompressBlob(downloadedBlob) : downloadedBlob;
       saveBlob(originalBlob, resource.originalName || resource.name);
-      showToast("原文件已恢复", resource.originalName || resource.name);
+      showToast(resource.compressed ? "原文件已恢复并保存" : "文件已保存到本地", resource.originalName || resource.name);
     } catch (error) {
       showToast("下载失败", error.message || "无法恢复原文件", "error");
     }
