@@ -13,7 +13,6 @@ const ICONS = {
   "folder-open": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="m6 14 1.45-2.9A2 2 0 0 1 9.24 10H20a2 2 0 0 1 1.94 2.5l-1.55 6a2 2 0 0 1-1.94 1.5H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3.93a2 2 0 0 1 1.66.9l.82 1.2A2 2 0 0 0 11.07 6H18a2 2 0 0 1 2 2v2"/></svg>',
   "image": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg>',
   "loader-circle": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>',
-  "menu": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="4" x2="20" y1="12" y2="12"/><line x1="4" x2="20" y1="6" y2="6"/><line x1="4" x2="20" y1="18" y2="18"/></svg>',
   "music": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>',
   "package-open": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22v-9"/><path d="M15.17 2.21 12 5.38 8.83 2.21 3.77 5.25A2 2 0 0 0 2.72 7v10a2 2 0 0 0 1.05 1.76l7 4A2 2 0 0 0 12 22a2 2 0 0 0 1.23-.24l7-4A2 2 0 0 0 21.28 17V7a2 2 0 0 0-1.05-1.75Z"/><path d="m7 8 5 3 5-3"/><path d="m7 13 5 3 5-3"/></svg>',
   "pencil": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"/><path d="m15 5 4 4"/></svg>',
@@ -57,13 +56,6 @@ const state = {
 };
 
 const elements = {
-  sidebar: document.getElementById("sidebar"),
-  sidebarBackdrop: document.getElementById("sidebarBackdrop"),
-  sidebarClose: document.getElementById("sidebarClose"),
-  menuButton: document.getElementById("menuButton"),
-  storageDot: document.getElementById("storageDot"),
-  storageMode: document.getElementById("storageMode"),
-  storageDescription: document.getElementById("storageDescription"),
   modeBadge: document.getElementById("modeBadge"),
   uploadLimit: document.getElementById("uploadLimit"),
   dropZone: document.getElementById("dropZone"),
@@ -263,48 +255,28 @@ function showToast(title, detail = "", type = "success") {
   }, 3200);
 }
 
-function openSidebar() {
-  elements.sidebar.classList.add("is-open");
-  elements.menuButton.setAttribute("aria-expanded", "true");
-}
-
-function closeSidebar() {
-  elements.sidebar.classList.remove("is-open");
-  elements.menuButton.setAttribute("aria-expanded", "false");
-}
-
 function setStorageMode(mode) {
   state.mode = mode;
   const badgeText = elements.modeBadge.querySelector("span:last-child");
   const badgeDot = elements.modeBadge.querySelector(".status-dot");
 
-  elements.storageDot.className = "status-dot";
   badgeDot.className = "status-dot";
 
   if (mode === "server") {
-    elements.storageDot.classList.add("is-online");
     badgeDot.classList.add("is-online");
-    elements.storageMode.textContent = "磁盘服务";
-    elements.storageDescription.textContent = "资源保存在项目 uploads 目录中。";
     badgeText.textContent = "本地服务已连接";
     elements.uploadLimit.textContent = "单文件最大 250 MB";
     return;
   }
 
   if (mode === "local") {
-    elements.storageDot.classList.add("is-local");
     badgeDot.classList.add("is-local");
-    elements.storageMode.textContent = "浏览器存储";
-    elements.storageDescription.textContent = "资源保存在当前浏览器的 IndexedDB 中。";
     badgeText.textContent = "浏览器本地模式";
     elements.uploadLimit.textContent = "单文件最大 100 MB";
     return;
   }
 
-  elements.storageDot.classList.add("is-error");
   badgeDot.classList.add("is-error");
-  elements.storageMode.textContent = "存储不可用";
-  elements.storageDescription.textContent = "当前浏览器无法提供持久化存储。";
   badgeText.textContent = "存储连接异常";
   elements.uploadLimit.textContent = "当前无法上传";
 }
@@ -1190,17 +1162,6 @@ function setFilter(filter) {
 }
 
 function bindEvents() {
-  elements.menuButton.addEventListener("click", openSidebar);
-  elements.sidebarClose.addEventListener("click", closeSidebar);
-  elements.sidebarBackdrop.addEventListener("click", closeSidebar);
-  document.querySelectorAll(".sidebar__nav a").forEach((link) => {
-    link.addEventListener("click", () => {
-      document.querySelectorAll(".nav-item").forEach((item) => item.classList.remove("is-active"));
-      link.classList.add("is-active");
-      closeSidebar();
-    });
-  });
-
   elements.chooseFilesButton.addEventListener("click", (event) => {
     event.stopPropagation();
     elements.fileInput.click();
@@ -1315,8 +1276,6 @@ function bindEvents() {
       closeEdit();
     } else if (elements.previewModal.classList.contains("is-open")) {
       closePreview();
-    } else {
-      closeSidebar();
     }
   });
 }
