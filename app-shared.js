@@ -114,6 +114,7 @@ const state = {
   page: 1,
   pageSize: 5,
   supabaseTotal: 0,
+  supabaseTotalSize: 0,
   cloudOffline: false,
   activeUpload: false,
   syncingPending: false,
@@ -598,18 +599,9 @@ function buildSupabasePageUrl() {
   return `${SUPABASE_URL}/rest/v1/${SUPABASE_TABLE}?${params.toString()}`;
 }
 
-function parseContentRange(value) {
-  if (!value) {
-    return 0;
-  }
-  const total = value.split("/")[1];
-  const parsed = Number(total);
-  return Number.isFinite(parsed) ? parsed : 0;
-}
-
-async function loadSupabaseFilteredTotal() {
+async function loadSupabaseFilteredStats() {
   const countUrl = new URL(buildSupabasePageUrl());
-  countUrl.searchParams.set("select", "id");
+  countUrl.searchParams.set("select", "size");
   countUrl.searchParams.delete("limit");
   countUrl.searchParams.delete("offset");
   countUrl.searchParams.delete("order");
@@ -618,10 +610,14 @@ async function loadSupabaseFilteredTotal() {
     cache: "no-store"
   }, 15000);
   if (!response.ok) {
-    return 0;
+    return { count: 0, totalSize: 0 };
   }
   const rows = await response.json();
-  return Array.isArray(rows) ? rows.length : 0;
+  const items = Array.isArray(rows) ? rows : [];
+  return {
+    count: items.length,
+    totalSize: items.reduce((sum, row) => sum + (Number(row.size) || 0), 0)
+  };
 }
 
 async function loadSupabasePage() {
@@ -634,10 +630,12 @@ async function loadSupabasePage() {
       if (cachedResources.length) {
         state.resources = cachedResources.slice(0, state.pageSize).map(normalizeResource).filter(Boolean);
         state.supabaseTotal = Number(localStorage.getItem(`${RESOURCE_CACHE_KEY}_total`)) || state.resources.length;
+        state.supabaseTotalSize = Number(localStorage.getItem(`${RESOURCE_CACHE_KEY}_total_size`)) || 0;
         renderAll();
       }
     }
 
+    const statsPromise = loadSupabaseFilteredStats();
     const response = await fetchWithTimeout(buildSupabasePageUrl(), {
       headers: supabaseHeaders({ Prefer: "count=exact" }),
       cache: "no-store"
@@ -646,10 +644,9 @@ async function loadSupabasePage() {
       const detail = await response.text();
       throw new Error(`Supabase table unavailable: ${detail.slice(0, 120)}`);
     }
-    state.supabaseTotal = parseContentRange(response.headers.get("Content-Range"));
-    if (!state.supabaseTotal) {
-      state.supabaseTotal = await loadSupabaseFilteredTotal();
-    }
+    const stats = await statsPromise;
+    state.supabaseTotal = stats.count;
+    state.supabaseTotalSize = stats.totalSize;
     state.cloudOffline = false;
     const pageResources = await response.json();
     state.resources = pageResources.map((resource) => normalizeResource({
@@ -661,6 +658,7 @@ async function loadSupabasePage() {
     writeResourceCache(state.resources);
     try {
       localStorage.setItem(`${RESOURCE_CACHE_KEY}_total`, String(state.supabaseTotal));
+      localStorage.setItem(`${RESOURCE_CACHE_KEY}_total_size`, String(state.supabaseTotalSize));
     } catch (error) {
       // Ignore cache write failures.
     }
@@ -815,9 +813,10 @@ function renderSummary() {
   const totalCount = serverPaged
     ? Math.max(state.supabaseTotal, state.resources.length)
     : state.resources.length;
-  elements.resourceCount.textContent = serverPaged
-    ? `共 ${totalCount} 个资源 · 当前页 ${state.resources.length} 个`
-    : `${totalCount} 个资源`;
+  const totalSize = serverPaged
+    ? state.supabaseTotalSize
+    : state.resources.reduce((sum, resource) => sum + resource.size, 0);
+  elements.resourceCount.textContent = `共 ${totalCount} 个资源 · ${formatBytes(totalSize)}`;
 }
 
 function filteredResources() {
