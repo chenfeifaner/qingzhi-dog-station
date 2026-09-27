@@ -1339,6 +1339,10 @@ select:focus-visible,
   word-break: break-word;
 }
 
+.preview-meta__item--wide {
+  grid-column: 1 / -1;
+}
+
 .modal__actions {
   display: flex;
   flex-wrap: wrap;
