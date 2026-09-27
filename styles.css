@@ -554,9 +554,11 @@ select:focus-visible,
 .file-avatar {
   display: grid;
   place-items: center;
-  width: 40px;
-  height: 40px;
-  border-radius: 7px;
+  flex: 0 0 52px;
+  width: 52px;
+  height: 52px;
+  overflow: hidden;
+  border-radius: 8px;
   background: #edf1f4;
   color: #52616e;
 }
@@ -569,8 +571,10 @@ select:focus-visible,
 .file-avatar img {
   width: 100%;
   height: 100%;
+  padding: 2px;
   border-radius: inherit;
-  object-fit: cover;
+  background: rgba(255, 255, 255, 0.72);
+  object-fit: contain;
 }
 
 .file-avatar--image {
@@ -1551,7 +1555,7 @@ select:focus-visible,
   .resource-row > .resource-cell:nth-child(3) {
     display: block;
     grid-column: 1;
-    padding-left: 52px;
+    padding-left: 56px;
   }
 
   .resource-row > .resource-cell:nth-child(3) {
@@ -1627,6 +1631,12 @@ select:focus-visible,
   .resources-head {
     align-items: flex-start;
     flex-direction: column;
+  }
+
+  .file-avatar {
+    flex-basis: 48px;
+    width: 48px;
+    height: 48px;
   }
 
   .drop-zone {
