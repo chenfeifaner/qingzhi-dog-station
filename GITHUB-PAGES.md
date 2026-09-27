@@ -5,7 +5,7 @@
 ```text
 index.html
 styles.css
-app.js
+app-shared.js
 assets/qingque-bg.jpg
 .nojekyll
 ```
