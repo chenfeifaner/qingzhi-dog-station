@@ -277,6 +277,16 @@ select:focus-visible,
   font-weight: 700;
 }
 
+.upload-head-meta {
+  display: grid;
+  justify-items: end;
+  gap: 8px;
+}
+
+.mobile-mode-badge {
+  display: none;
+}
+
 .button {
   display: inline-flex;
   align-items: center;
@@ -1449,6 +1459,15 @@ select:focus-visible,
 
   .topbar__actions .mode-badge {
     display: none;
+  }
+
+  .upload-head-meta {
+    width: 100%;
+    justify-items: start;
+  }
+
+  .mobile-mode-badge {
+    display: inline-flex;
   }
 
   #adminButton,
