@@ -164,6 +164,11 @@ select:focus-visible,
   box-shadow: 0 0 0 4px rgba(78, 154, 255, 0.12);
 }
 
+.status-dot.is-offline {
+  background: #d0a736;
+  box-shadow: 0 0 0 4px rgba(208, 167, 54, 0.12);
+}
+
 .status-dot.is-error {
   background: #ff676e;
   box-shadow: 0 0 0 4px rgba(255, 103, 110, 0.12);
