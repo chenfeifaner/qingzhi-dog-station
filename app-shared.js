@@ -88,7 +88,6 @@ const elements = {
   modeBadges: document.querySelectorAll("[data-mode-badge]"),
   adminButton: document.getElementById("adminButton"),
   adminButtonText: document.getElementById("adminButtonText"),
-  uploadLimit: document.getElementById("uploadLimit"),
   dropZone: document.getElementById("dropZone"),
   fileInput: document.getElementById("fileInput"),
   chooseFilesButton: document.getElementById("chooseFilesButton"),
@@ -348,24 +347,20 @@ function setStorageMode(mode) {
 
   if (mode === "server") {
     setBadge("is-online", "本地服务已连接");
-    elements.uploadLimit.textContent = "单文件最大 250 MB";
     return;
   }
 
   if (mode === "supabase") {
     setBadge("is-online", "云端动态模式");
-    elements.uploadLimit.textContent = "单文件最大 100 MB，超大文件自动分片";
     return;
   }
 
   if (mode === "local") {
     setBadge("is-local", "浏览器本地模式");
-    elements.uploadLimit.textContent = "单文件最大 100 MB";
     return;
   }
 
   setBadge("is-error", "存储连接异常");
-  elements.uploadLimit.textContent = "当前无法上传";
 }
 
 async function detectStorageMode() {
