@@ -924,6 +924,35 @@ select:focus-visible,
   white-space: nowrap;
 }
 
+.pagination__jump {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-left: 4px;
+}
+
+.pagination__jump input {
+  width: 58px;
+  height: 36px;
+  padding: 0 7px;
+  border: 1px solid rgba(87, 105, 115, 0.25);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.5);
+  color: var(--ink);
+  text-align: center;
+}
+
+.pagination__jump button {
+  height: 36px;
+  padding: 0 10px;
+  border: 1px solid rgba(87, 105, 115, 0.25);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.62);
+  color: var(--ink-soft);
+  font-size: 12px;
+  font-weight: 750;
+}
+
 .table-select {
   display: flex;
   align-items: center;
@@ -1171,6 +1200,7 @@ select:focus-visible,
 
 .modal__panel--preview {
   padding: 22px;
+  overflow-x: hidden;
 }
 
 .modal__panel--edit {
@@ -1210,6 +1240,8 @@ select:focus-visible,
 .modal__panel--confirm h2 {
   margin: 7px 0 0;
   font-size: 20px;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .preview-area {
@@ -1217,7 +1249,7 @@ select:focus-visible,
   place-items: center;
   min-height: 280px;
   max-height: 58vh;
-  overflow: hidden;
+  overflow: auto;
   border-radius: 8px;
   background: #101820;
 }
@@ -1225,9 +1257,12 @@ select:focus-visible,
 .preview-area img,
 .preview-area video {
   display: block;
-  width: 100%;
+  width: auto;
+  height: auto;
+  max-width: 100%;
   max-height: 58vh;
   object-fit: contain;
+  margin: auto;
 }
 
 .preview-area audio {
@@ -1298,14 +1333,15 @@ select:focus-visible,
 
 .preview-meta__item strong {
   display: block;
-  overflow: hidden;
   font-size: 12px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
+  white-space: normal;
+  word-break: break-word;
 }
 
 .modal__actions {
   display: flex;
+  flex-wrap: wrap;
   justify-content: flex-end;
   gap: 10px;
   margin-top: 18px;
@@ -1478,6 +1514,10 @@ select:focus-visible,
 
   .pagination {
     flex-wrap: wrap;
+  }
+
+  .pagination__jump {
+    order: 5;
   }
 
   .resource-table__body {
@@ -1672,6 +1712,15 @@ select:focus-visible,
 
   .modal__panel--preview {
     padding: 16px;
+  }
+
+  .preview-area img,
+  .preview-area video {
+    max-height: 50vh;
+  }
+
+  .modal__actions .button {
+    flex: 1 1 auto;
   }
 
   .modal__panel--edit {
