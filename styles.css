@@ -881,6 +881,8 @@ select:focus-visible,
   padding: 10px 16px;
   border-bottom: 1px solid rgba(23, 33, 43, 0.08);
   transition: background 150ms ease;
+  content-visibility: auto;
+  contain-intrinsic-size: 76px;
 }
 
 .resource-row:last-child {
