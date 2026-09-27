@@ -7,6 +7,7 @@ index.html
 styles.css
 app-shared.js
 assets/qingque-bg.jpg
+favicon.svg
 .nojekyll
 ```
 
