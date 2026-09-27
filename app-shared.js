@@ -108,6 +108,11 @@ const elements = {
   searchInput: document.getElementById("searchInput"),
   sortSelect: document.getElementById("sortSelect"),
   resourceCount: document.getElementById("resourceCount"),
+  usageResources: document.getElementById("usageResources"),
+  usageSize: document.getElementById("usageSize"),
+  usageObjects: document.getElementById("usageObjects"),
+  usagePending: document.getElementById("usagePending"),
+  usageStatus: document.getElementById("usageStatus"),
   bulkBar: document.getElementById("bulkBar"),
   bulkCount: document.getElementById("bulkCount"),
   bulkDeleteButton: document.getElementById("bulkDeleteButton"),
@@ -615,6 +620,7 @@ function normalizeResource(resource) {
 
 function renderAll() {
   renderSummary();
+  renderUsageStats();
   renderResources();
 }
 
@@ -623,6 +629,28 @@ function renderSummary() {
   elements.resourceCount.textContent = state.resources.length
     ? `${state.resources.length} 个资源 · ${formatBytes(totalSize)}`
     : "0 个资源";
+}
+
+function renderUsageStats() {
+  const totalSize = state.resources.reduce((sum, resource) => sum + resource.size, 0);
+  const cloudResources = state.resources.filter((resource) => resource.storage !== "browser");
+  const cloudObjects = cloudResources.reduce(
+    (sum, resource) => sum + (resource.chunked ? resource.chunkParts.length : 1),
+    0
+  );
+  const pendingCount = state.resources.filter((resource) => resource.storage === "browser").length;
+
+  elements.usageResources.textContent = String(state.resources.length);
+  elements.usageSize.textContent = formatBytes(totalSize);
+  elements.usageObjects.textContent = String(cloudObjects);
+  elements.usagePending.textContent = String(pendingCount);
+  elements.usageStatus.textContent = state.mode === "supabase"
+    ? "云端在线"
+    : state.mode === "server"
+      ? "本地服务"
+      : state.mode === "local"
+        ? "浏览器"
+        : "异常";
 }
 
 function filteredResources() {
