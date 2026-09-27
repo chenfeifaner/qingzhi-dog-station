@@ -96,7 +96,6 @@ const elements = {
   chooseFolderButton: document.getElementById("chooseFolderButton"),
   clipboardButton: document.getElementById("clipboardButton"),
   resourceNameInput: document.getElementById("resourceNameInput"),
-  categoryInput: document.getElementById("categoryInput"),
   tagsInput: document.getElementById("tagsInput"),
   descriptionInput: document.getElementById("descriptionInput"),
   queue: document.getElementById("queue"),
@@ -639,7 +638,6 @@ function filteredResources() {
     }
     const haystack = [
       resource.name,
-      resource.category,
       resource.description,
       ...(resource.tags || []),
       typeLabel(resource.kind)
@@ -735,7 +733,6 @@ function renderResources() {
             <span title="${escapeHTML(resource.description || "")}">${escapeHTML(formatBytes(resource.size))} · ${escapeHTML(resource.mime || "未知类型")}${escapeHTML(tags)}</span>
           </div>
         </div>
-        <span class="resource-cell"><span class="category-chip">${escapeHTML(resource.category)}</span></span>
         <span class="resource-cell"><span class="type-chip type-chip--${escapeHTML(resource.kind)}">${escapeHTML(typeLabel(resource.kind))}</span></span>
         <span class="resource-cell">${escapeHTML(formatDate(resource.uploadedAt))}</span>
         <span class="resource-actions">
@@ -887,7 +884,7 @@ function renderQueue() {
   elements.queueSummary.textContent = `${state.queue.length} 个文件`;
   elements.queueList.innerHTML = state.queue.map((item) => {
     const statusText = item.status === "uploading"
-      ? `上传中 ${Math.round(item.progress)}%`
+      ? `${item.phase || "上传中"} ${Math.round(item.progress)}%`
       : item.status === "done"
         ? "上传完成"
         : item.status === "error"
@@ -966,7 +963,7 @@ function uploadMetadata(file, index = 0, total = 1) {
   return {
     fileName: file.name,
     name,
-    category: elements.categoryInput.value || "其他",
+    category: "其他",
     tags: elements.tagsInput.value.split(/[,，]/).map((tag) => tag.trim()).filter(Boolean).slice(0, 8),
     description: elements.descriptionInput.value.trim()
   };
@@ -1397,7 +1394,7 @@ function openPreview(id) {
   const tags = resource.tags.length ? resource.tags.join("、") : "无标签";
   elements.previewMeta.innerHTML = `
     <div class="preview-meta__item"><span>文件大小</span><strong>${escapeHTML(formatBytes(resource.size))}</strong></div>
-    <div class="preview-meta__item"><span>资源分类</span><strong>${escapeHTML(resource.category)}</strong></div>
+    <div class="preview-meta__item"><span>存储方式</span><strong>${resource.storage === "browser" ? "本地暂存" : resource.chunked ? "云端分片" : "云端文件"}</strong></div>
     <div class="preview-meta__item"><span>标签</span><strong title="${escapeHTML(tags)}">${escapeHTML(tags)}</strong></div>
     <div class="preview-meta__item"><span>上传时间</span><strong>${escapeHTML(formatDate(resource.uploadedAt))}</strong></div>
     <div class="preview-meta__item"><span>文件类型</span><strong>${escapeHTML(typeLabel(resource.kind))}</strong></div>
@@ -1467,24 +1464,12 @@ function openEdit(id) {
   elements.editStatus.textContent = "";
   elements.editForm.elements.id.value = resource.id;
   elements.editForm.elements.name.value = resource.name;
-  setSelectValue(elements.editForm.elements.category, resource.category);
   elements.editForm.elements.tags.value = resource.tags.join(", ");
   elements.editForm.elements.description.value = resource.description || "";
   elements.editModal.classList.add("is-open");
   elements.editModal.setAttribute("aria-hidden", "false");
   document.body.classList.add("modal-open");
   window.setTimeout(() => elements.editForm.elements.name.focus(), 0);
-}
-
-function setSelectValue(select, value) {
-  const exists = [...select.options].some((option) => option.value === value);
-  if (!exists && value) {
-    const option = document.createElement("option");
-    option.value = value;
-    option.textContent = value;
-    select.appendChild(option);
-  }
-  select.value = value || "其他";
 }
 
 function closeEdit() {
@@ -1510,7 +1495,6 @@ async function saveEdit(event) {
 
   const updates = {
     name,
-    category: elements.editForm.elements.category.value || "其他",
     tags: elements.editForm.elements.tags.value.split(/[,，]/).map((tag) => tag.trim()).filter(Boolean).slice(0, 8),
     description: elements.editForm.elements.description.value.trim(),
     kind: getKind({ name, type: resource.mime })
