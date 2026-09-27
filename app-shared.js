@@ -113,9 +113,12 @@ const state = {
   sort: "newest",
   page: 1,
   pageSize: 5,
+  supabaseTotal: 0,
+  cloudOffline: false,
   activeUpload: false,
   syncingPending: false,
   cloudRetryTimer: null,
+  searchTimer: null,
   isAdmin: readAdminSession(),
   selectedIds: new Set(),
   pendingDeleteIds: [],
@@ -560,10 +563,107 @@ async function requestPersistentStorage() {
   }
 }
 
+function buildSupabasePageUrl() {
+  const params = new URLSearchParams();
+  const offset = (state.page - 1) * state.pageSize;
+  params.set("select", "id,name,tags,description,kind,mime,size,file_url,file_path,uploaded_at");
+  params.set("limit", String(state.pageSize));
+  params.set("offset", String(offset));
+
+  if (state.sort === "oldest") {
+    params.set("order", "uploaded_at.asc");
+  } else if (state.sort === "name") {
+    params.set("order", "name.asc");
+  } else if (state.sort === "size") {
+    params.set("order", "size.desc");
+  } else {
+    params.set("order", "uploaded_at.desc");
+  }
+
+  if (state.filter !== "all") {
+    if (state.filter === "other") {
+      params.set("kind", "in.(model,code,other)");
+    } else {
+      params.set("kind", `eq.${state.filter}`);
+    }
+  }
+
+  const search = state.search.trim();
+  if (search) {
+    const escaped = search.replace(/[(),]/g, " ").slice(0, 80);
+    params.set("or", `(name.ilike.*${escaped}*,description.ilike.*${escaped}*)`);
+  }
+  return `${SUPABASE_URL}/rest/v1/${SUPABASE_TABLE}?${params.toString()}`;
+}
+
+function parseContentRange(value) {
+  if (!value) {
+    return 0;
+  }
+  const total = value.split("/")[1];
+  const parsed = Number(total);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+async function loadSupabasePage() {
+  if (state.mode !== "supabase") {
+    return;
+  }
+  try {
+    if (state.page === 1 && !state.resources.length) {
+      const cachedResources = readResourceCache();
+      if (cachedResources.length) {
+        state.resources = cachedResources.slice(0, state.pageSize).map(normalizeResource).filter(Boolean);
+        state.supabaseTotal = Number(localStorage.getItem(`${RESOURCE_CACHE_KEY}_total`)) || state.resources.length;
+        renderAll();
+      }
+    }
+
+    const response = await fetchWithTimeout(buildSupabasePageUrl(), {
+      headers: supabaseHeaders({ Prefer: "count=exact" }),
+      cache: "no-store"
+    }, 15000);
+    if (!response.ok) {
+      const detail = await response.text();
+      throw new Error(`Supabase table unavailable: ${detail.slice(0, 120)}`);
+    }
+    state.supabaseTotal = parseContentRange(response.headers.get("Content-Range"));
+    state.cloudOffline = false;
+    const pageResources = await response.json();
+    state.resources = pageResources.map((resource) => normalizeResource({
+      ...resource,
+      url: resource.file_url,
+      filePath: resource.file_path,
+      uploadedAt: resource.uploaded_at
+    })).filter(Boolean);
+    writeResourceCache(state.resources);
+    try {
+      localStorage.setItem(`${RESOURCE_CACHE_KEY}_total`, String(state.supabaseTotal));
+    } catch (error) {
+      // Ignore cache write failures.
+    }
+    state.selectedIds.clear();
+    updateStorageBadge("supabase");
+    renderAll();
+  } catch (error) {
+    state.cloudOffline = true;
+    const localResources = (await getAllLocalResources()).map(normalizeResource).filter(Boolean);
+    state.resources = localResources;
+    updateStorageBadge("supabase-offline");
+    renderAll();
+    showToast("云端暂时不可用", "已保留云端模式，当前显示本地暂存并自动重试", "error");
+    state.cloudRetryTimer = window.setTimeout(loadSupabasePage, 60000);
+  }
+}
+
 async function loadResources() {
   if (state.cloudRetryTimer) {
     window.clearTimeout(state.cloudRetryTimer);
     state.cloudRetryTimer = null;
+  }
+  if (state.mode === "supabase") {
+    await loadSupabasePage();
+    return;
   }
   try {
     if (state.mode === "supabase" && !state.resources.length) {
@@ -743,12 +843,18 @@ function resourceIconHTML(resource) {
 }
 
 function renderResources() {
-  const allResources = filteredResources();
-  const totalPages = Math.max(1, Math.ceil(allResources.length / state.pageSize));
+  const serverPaged = state.mode === "supabase" && !state.cloudOffline;
+  const allResources = serverPaged ? state.resources : filteredResources();
+  const totalResources = serverPaged
+    ? Math.max(state.supabaseTotal, state.resources.length)
+    : allResources.length;
+  const totalPages = Math.max(1, Math.ceil(totalResources / state.pageSize));
   state.page = Math.min(Math.max(1, state.page), totalPages);
   const pageStart = (state.page - 1) * state.pageSize;
-  const resources = allResources.slice(pageStart, pageStart + state.pageSize);
-  const hasAnyResources = state.resources.length > 0;
+  const resources = serverPaged
+    ? state.resources.slice(0, state.pageSize)
+    : allResources.slice(pageStart, pageStart + state.pageSize);
+  const hasAnyResources = totalResources > 0;
   state.selectedIds = new Set(
     [...state.selectedIds].filter((id) => state.resources.some((resource) => resource.id === id))
   );
@@ -825,7 +931,7 @@ function renderResources() {
 
   hydrateIcons(elements.resourceList);
   syncSelection(resources);
-  renderPagination(totalPages, allResources.length);
+  renderPagination(totalPages, totalResources);
 }
 
 function renderPagination(totalPages, totalResources) {
@@ -869,8 +975,9 @@ function toggleSelected(id, selected) {
 }
 
 function setVisibleSelection(selected) {
-  const allResources = filteredResources();
-  const pageStart = (state.page - 1) * state.pageSize;
+  const serverPaged = state.mode === "supabase" && !state.cloudOffline;
+  const allResources = serverPaged ? state.resources : filteredResources();
+  const pageStart = serverPaged ? 0 : (state.page - 1) * state.pageSize;
   allResources.slice(pageStart, pageStart + state.pageSize).forEach((resource) => {
     if (selected) {
       state.selectedIds.add(resource.id);
@@ -1350,7 +1457,13 @@ async function uploadOne(item, metadata) {
       resource = await uploadLocally(item, metadata);
     }
     const normalized = normalizeResource(resource);
-    state.resources = [normalized, ...state.resources.filter((entry) => entry.id !== normalized.id)];
+    if (state.mode === "supabase") {
+      state.cloudOffline = false;
+      state.page = 1;
+      await loadSupabasePage();
+    } else {
+      state.resources = [normalized, ...state.resources.filter((entry) => entry.id !== normalized.id)];
+    }
     updateQueueItem(item.id, { status: "done", progress: 100, error: "" });
     renderAll();
     return true;
@@ -1400,6 +1513,12 @@ async function syncPendingCloudUploads() {
   }
   state.syncingPending = false;
   if (syncedCount) {
+    state.page = 1;
+    if (state.mode === "supabase" && !state.cloudOffline) {
+      await loadSupabasePage();
+    } else {
+      renderAll();
+    }
     showToast("本地暂存已同步到云端", `成功上传 ${syncedCount} 个资源`);
   }
 }
@@ -1738,7 +1857,11 @@ async function deleteResources(ids) {
     state.resources = state.resources.filter((entry) => !deletedIds.includes(entry.id));
     deletedIds.forEach((id) => state.selectedIds.delete(id));
     closeDeleteConfirm();
-    renderAll();
+    if (state.mode === "supabase" && !state.cloudOffline) {
+      await loadSupabasePage();
+    } else {
+      renderAll();
+    }
     if (failed.length) {
       showToast("部分资源删除失败", `${deletedIds.length} 个成功，${failed.length} 个失败`, "error");
     } else {
@@ -1835,7 +1958,11 @@ function setFilter(filter) {
     tab.classList.toggle("is-active", active);
     tab.setAttribute("aria-selected", String(active));
   });
-  renderResources();
+  if (state.mode === "supabase" && !state.cloudOffline) {
+    loadSupabasePage();
+  } else {
+    renderResources();
+  }
 }
 
 function bindEvents() {
@@ -1901,12 +2028,21 @@ function bindEvents() {
   elements.searchInput.addEventListener("input", () => {
     state.search = elements.searchInput.value;
     state.page = 1;
-    renderResources();
+    window.clearTimeout(state.searchTimer);
+    if (state.mode === "supabase" && !state.cloudOffline) {
+      state.searchTimer = window.setTimeout(loadSupabasePage, 350);
+    } else {
+      renderResources();
+    }
   });
   elements.sortSelect.addEventListener("change", () => {
     state.sort = elements.sortSelect.value;
     state.page = 1;
-    renderResources();
+    if (state.mode === "supabase" && !state.cloudOffline) {
+      loadSupabasePage();
+    } else {
+      renderResources();
+    }
   });
   document.querySelectorAll(".filter-tab").forEach((tab) => {
     tab.addEventListener("click", () => setFilter(tab.dataset.filter));
@@ -1914,18 +2050,30 @@ function bindEvents() {
   elements.previousPageButton.addEventListener("click", () => {
     if (state.page > 1) {
       state.page -= 1;
-      renderResources();
+      if (state.mode === "supabase" && !state.cloudOffline) {
+        loadSupabasePage();
+      } else {
+        renderResources();
+      }
     }
   });
   elements.nextPageButton.addEventListener("click", () => {
     state.page += 1;
-    renderResources();
+    if (state.mode === "supabase" && !state.cloudOffline) {
+      loadSupabasePage();
+    } else {
+      renderResources();
+    }
   });
   elements.pageNumbers.addEventListener("click", (event) => {
     const pageButton = event.target.closest("[data-page]");
     if (pageButton) {
       state.page = Number(pageButton.dataset.page) || 1;
-      renderResources();
+      if (state.mode === "supabase" && !state.cloudOffline) {
+        loadSupabasePage();
+      } else {
+        renderResources();
+      }
     }
   });
   elements.selectAllInput.addEventListener("change", () => {
