@@ -10,7 +10,7 @@
   <link rel="preconnect" href="https://vdihfdrylanbfyrhvnnl.supabase.co" crossorigin>
   <link rel="dns-prefetch" href="https://vdihfdrylanbfyrhvnnl.supabase.co">
   <link rel="preload" as="image" href="assets/qingque-bg.jpg" fetchpriority="high">
-  <link rel="stylesheet" href="styles.css?v=qingque-jade-25">
+  <link rel="stylesheet" href="styles.css?v=qingque-jade-26">
 </head>
 <body>
   <div class="app-shell">
@@ -178,6 +178,10 @@
             </button>
             <div class="pagination__pages" id="pageNumbers"></div>
             <span class="pagination__summary" id="pageSummary">第 1 / 1 页</span>
+            <div class="pagination__jump">
+              <input id="pageJumpInput" type="number" min="1" value="1" aria-label="跳转页码">
+              <button id="pageJumpButton" type="button">跳转</button>
+            </div>
             <button class="pagination__arrow" id="nextPageButton" type="button" aria-label="下一页">
               <span data-icon="chevron-right"></span>
             </button>
@@ -302,6 +306,6 @@
 
   <div class="toast-region" id="toastRegion" aria-live="polite" aria-atomic="true"></div>
 
-  <script src="app-shared.js?v=qingque-jade-25" defer></script>
+  <script src="app-shared.js?v=qingque-jade-26" defer></script>
 </body>
 </html>
