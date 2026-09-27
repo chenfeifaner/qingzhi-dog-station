@@ -85,7 +85,7 @@ const state = {
 };
 
 const elements = {
-  modeBadge: document.getElementById("modeBadge"),
+  modeBadges: document.querySelectorAll("[data-mode-badge]"),
   adminButton: document.getElementById("adminButton"),
   adminButtonText: document.getElementById("adminButtonText"),
   uploadLimit: document.getElementById("uploadLimit"),
@@ -332,40 +332,50 @@ function submitAdmin(event) {
 
 function setStorageMode(mode) {
   state.mode = mode;
-  const badgeText = elements.modeBadge.querySelector("span:last-child");
-  const badgeDot = elements.modeBadge.querySelector(".status-dot");
-
-  badgeDot.className = "status-dot";
+  const badges = [...elements.modeBadges];
+  const setBadge = (className, label) => {
+    badges.forEach((badge) => {
+      const text = badge.querySelector("span:last-child");
+      const dot = badge.querySelector(".status-dot");
+      if (dot) {
+        dot.className = `status-dot ${className}`.trim();
+      }
+      if (text) {
+        text.textContent = label;
+      }
+    });
+  };
 
   if (mode === "server") {
-    badgeDot.classList.add("is-online");
-    badgeText.textContent = "本地服务已连接";
+    setBadge("is-online", "本地服务已连接");
     elements.uploadLimit.textContent = "单文件最大 250 MB";
     return;
   }
 
   if (mode === "supabase") {
-    badgeDot.classList.add("is-online");
-    badgeText.textContent = "云端动态模式";
-    elements.uploadLimit.textContent = "单文件最大 100 MB";
+    setBadge("is-online", "云端动态模式");
+    elements.uploadLimit.textContent = "单文件最大 100 MB，超大文件自动分片";
     return;
   }
 
   if (mode === "local") {
-    badgeDot.classList.add("is-local");
-    badgeText.textContent = "浏览器本地模式";
+    setBadge("is-local", "浏览器本地模式");
     elements.uploadLimit.textContent = "单文件最大 100 MB";
     return;
   }
 
-  badgeDot.classList.add("is-error");
-  badgeText.textContent = "存储连接异常";
+  setBadge("is-error", "存储连接异常");
   elements.uploadLimit.textContent = "当前无法上传";
 }
 
 async function detectStorageMode() {
   if (window.location.protocol === "file:") {
     setStorageMode("local");
+    return;
+  }
+
+  if (SUPABASE_ENABLED && window.location.protocol === "https:") {
+    setStorageMode("supabase");
     return;
   }
 
@@ -506,7 +516,7 @@ async function loadResources() {
       }
       const payload = await response.json();
       resources = Array.isArray(payload.resources) ? payload.resources : [];
-    } else if (state.mode === "supabase" && resource.storage !== "browser") {
+    } else if (state.mode === "supabase") {
       const response = await fetchWithTimeout(
         `${SUPABASE_URL}/rest/v1/${SUPABASE_TABLE}?select=*&order=uploaded_at.desc`,
         { headers: supabaseHeaders(), cache: "no-store" },
@@ -1222,7 +1232,7 @@ async function uploadOne(item, metadata) {
     let resource;
     if (state.mode === "server") {
       resource = await uploadWithProgress(item, metadata);
-    } else if (state.mode === "supabase") {
+    } else if (state.mode === "supabase" && resource.storage !== "browser") {
       localRecord = await uploadLocally(item, metadata, { pendingCloud: true });
       state.resources = [normalizeResource(localRecord), ...state.resources];
       renderAll();
