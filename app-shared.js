@@ -162,6 +162,8 @@ const elements = {
   nextPageButton: document.getElementById("nextPageButton"),
   pageNumbers: document.getElementById("pageNumbers"),
   pageSummary: document.getElementById("pageSummary"),
+  pageJumpInput: document.getElementById("pageJumpInput"),
+  pageJumpButton: document.getElementById("pageJumpButton"),
   emptyState: document.getElementById("emptyState"),
   emptyTitle: document.getElementById("emptyTitle"),
   emptyDescription: document.getElementById("emptyDescription"),
@@ -937,6 +939,8 @@ function renderResources() {
 function renderPagination(totalPages, totalResources) {
   elements.pagination.hidden = totalResources <= state.pageSize;
   elements.pageSummary.textContent = `第 ${state.page} / ${totalPages} 页`;
+  elements.pageJumpInput.max = String(totalPages);
+  elements.pageJumpInput.value = String(state.page);
   elements.previousPageButton.disabled = state.page <= 1;
   elements.nextPageButton.disabled = state.page >= totalPages;
 
@@ -951,6 +955,21 @@ function renderPagination(totalPages, totalResources) {
     `);
   }
   elements.pageNumbers.innerHTML = pages.join("");
+}
+
+function goToPage(page) {
+  const maxPage = Math.max(1, Number(elements.pageJumpInput.max) || 1);
+  const targetPage = Math.min(Math.max(1, Number(page) || 1), maxPage);
+  elements.pageJumpInput.value = String(targetPage);
+  if (targetPage === state.page) {
+    return;
+  }
+  state.page = targetPage;
+  if (state.mode === "supabase" && !state.cloudOffline) {
+    loadSupabasePage();
+  } else {
+    renderResources();
+  }
 }
 
 function syncSelection(visibleResources = filteredResources()) {
@@ -2048,32 +2067,24 @@ function bindEvents() {
     tab.addEventListener("click", () => setFilter(tab.dataset.filter));
   });
   elements.previousPageButton.addEventListener("click", () => {
-    if (state.page > 1) {
-      state.page -= 1;
-      if (state.mode === "supabase" && !state.cloudOffline) {
-        loadSupabasePage();
-      } else {
-        renderResources();
-      }
-    }
+    goToPage(state.page - 1);
   });
   elements.nextPageButton.addEventListener("click", () => {
-    state.page += 1;
-    if (state.mode === "supabase" && !state.cloudOffline) {
-      loadSupabasePage();
-    } else {
-      renderResources();
-    }
+    goToPage(state.page + 1);
   });
   elements.pageNumbers.addEventListener("click", (event) => {
     const pageButton = event.target.closest("[data-page]");
     if (pageButton) {
-      state.page = Number(pageButton.dataset.page) || 1;
-      if (state.mode === "supabase" && !state.cloudOffline) {
-        loadSupabasePage();
-      } else {
-        renderResources();
-      }
+      goToPage(Number(pageButton.dataset.page) || 1);
+    }
+  });
+  elements.pageJumpButton.addEventListener("click", () => {
+    goToPage(elements.pageJumpInput.value);
+  });
+  elements.pageJumpInput.addEventListener("keydown", (event) => {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      goToPage(elements.pageJumpInput.value);
     }
   });
   elements.selectAllInput.addEventListener("change", () => {
