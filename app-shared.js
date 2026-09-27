@@ -11,6 +11,7 @@ const ICONS = {
   "files": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M15.5 2H8.6a2 2 0 0 0-2 2v12.4a2 2 0 0 0 2 2h9.8a2 2 0 0 0 2-2V6.5Z"/><path d="M15.5 2v4.5h4.9"/><path d="M4 7.5v12.1a2 2 0 0 0 2 2h9"/></svg>',
   "film": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M7 3v18"/><path d="M17 3v18"/><path d="M3 7.5h4"/><path d="M17 7.5h4"/><path d="M3 12h18"/><path d="M3 16.5h4"/><path d="M17 16.5h4"/></svg>',
   "folder-open": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="m6 14 1.45-2.9A2 2 0 0 1 9.24 10H20a2 2 0 0 1 1.94 2.5l-1.55 6a2 2 0 0 1-1.94 1.5H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3.93a2 2 0 0 1 1.66.9l.82 1.2A2 2 0 0 0 11.07 6H18a2 2 0 0 1 2 2v2"/></svg>',
+  "folder-tree": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10a1 1 0 0 0 1-1V6a1 1 0 0 0-1-1h-2.5a1 1 0 0 1-.8-.4l-.9-1.2A1 1 0 0 0 15 3h-4a1 1 0 0 0-1 1v5a1 1 0 0 0 1 1z"/><path d="M20 21a1 1 0 0 0 1-1v-3a1 1 0 0 0-1-1h-2.5a1 1 0 0 1-.8-.4l-.9-1.2a1 1 0 0 0-.8-.4h-4a1 1 0 0 0-1 1v5a1 1 0 0 0 1 1z"/><path d="M3 5a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h5"/><path d="M6 5H3"/></svg>',
   "image": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg>',
   "loader-circle": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>',
   "music": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>',
@@ -40,7 +41,7 @@ const DB_NAME = "resource-hub-v1";
 const DB_STORE = "resources";
 const SERVER_LIMIT = 250 * 1024 * 1024;
 const LOCAL_LIMIT = 100 * 1024 * 1024;
-const SUPABASE_SOURCE_LIMIT = 250 * 1024 * 1024;
+const SUPABASE_SOURCE_LIMIT = 2 * 1024 * 1024 * 1024;
 const SUPABASE_UPLOAD_LIMIT = 100 * 1024 * 1024;
 const ADMIN_PASSWORD = "我是青雀大人的狗";
 const ADMIN_PASSWORD_PINYIN = "woshiqingquedarendegou";
@@ -90,7 +91,9 @@ const elements = {
   adminButtonText: document.getElementById("adminButtonText"),
   dropZone: document.getElementById("dropZone"),
   fileInput: document.getElementById("fileInput"),
+  folderInput: document.getElementById("folderInput"),
   chooseFilesButton: document.getElementById("chooseFilesButton"),
+  chooseFolderButton: document.getElementById("chooseFolderButton"),
   clipboardButton: document.getElementById("clipboardButton"),
   resourceNameInput: document.getElementById("resourceNameInput"),
   categoryInput: document.getElementById("categoryInput"),
@@ -231,6 +234,10 @@ function getKind(file) {
     return "model";
   }
   return "other";
+}
+
+function fileDisplayPath(file) {
+  return file.webkitRelativePath || file.name;
 }
 
 function typeLabel(kind) {
@@ -795,14 +802,15 @@ function addFiles(fileList) {
     : state.mode === "supabase"
       ? SUPABASE_SOURCE_LIMIT
       : LOCAL_LIMIT;
-  const queuedKeys = new Set(state.queue.map((item) => `${item.file.name}:${item.file.size}:${item.file.lastModified}`));
+  const queuedKeys = new Set(state.queue.map((item) => `${fileDisplayPath(item.file)}:${item.file.size}:${item.file.lastModified}`));
   const existingKeys = new Set(state.resources.map((resource) => `${resource.name}:${resource.size}`));
   let added = 0;
   let skipped = 0;
 
   files.forEach((file) => {
-    const key = `${file.name}:${file.size}:${file.lastModified}`;
-    const duplicateKey = `${file.name}:${file.size}`;
+    const displayPath = fileDisplayPath(file);
+    const key = `${displayPath}:${file.size}:${file.lastModified}`;
+    const duplicateKey = `${displayPath}:${file.size}`;
     if (!file.size || file.size > limit || queuedKeys.has(key) || existingKeys.has(duplicateKey)) {
       skipped += 1;
       return;
@@ -888,7 +896,7 @@ function renderQueue() {
       <div class="queue-item ${item.status === "done" ? "is-done" : ""} ${item.status === "error" ? "is-error" : ""}" data-queue-id="${escapeHTML(item.id)}">
         <span class="file-avatar file-avatar--${escapeHTML(item.kind)}" data-icon="${escapeHTML(typeIcon(item.kind))}"></span>
         <div class="queue-item__copy">
-          <strong title="${escapeHTML(item.file.name)}">${escapeHTML(item.file.name)}</strong>
+          <strong title="${escapeHTML(fileDisplayPath(item.file))}">${escapeHTML(fileDisplayPath(item.file))}</strong>
           <span>${escapeHTML(formatBytes(item.file.size))} · ${escapeHTML(typeLabel(item.kind))}</span>
         </div>
         <div class="queue-item__progress" style="--progress:${Math.max(0, Math.min(100, item.progress))}%">
@@ -950,9 +958,10 @@ function clearQueue() {
 
 function uploadMetadata(file, index = 0, total = 1) {
   const customName = elements.resourceNameInput.value.trim();
+  const sourceName = fileDisplayPath(file);
   const name = customName
     ? (total > 1 ? `${customName} ${index + 1}` : customName)
-    : file.name;
+    : sourceName;
   return {
     fileName: file.name,
     name,
@@ -1047,7 +1056,7 @@ async function prepareSupabaseUpload(file) {
     originalSize: file.size
   };
   const compressibleKinds = ["document", "code", "other"];
-  const shouldAttempt = file.size > SUPABASE_UPLOAD_LIMIT || compressibleKinds.includes(getKind(file));
+  const shouldAttempt = compressibleKinds.includes(getKind(file)) && file.size <= 300 * 1024 * 1024;
   if (!shouldAttempt) {
     return original;
   }
@@ -1227,13 +1236,20 @@ async function uploadOne(item, metadata) {
     let resource;
     if (state.mode === "server") {
       resource = await uploadWithProgress(item, metadata);
-    } else if (state.mode === "supabase" && resource.storage !== "browser") {
-      localRecord = await uploadLocally(item, metadata, { pendingCloud: true });
-      state.resources = [normalizeResource(localRecord), ...state.resources];
-      renderAll();
+    } else if (state.mode === "supabase") {
+      try {
+        localRecord = await uploadLocally(item, metadata, { pendingCloud: true });
+        state.resources = [normalizeResource(localRecord), ...state.resources];
+        renderAll();
+      } catch (localError) {
+        localRecord = null;
+        showToast("本地暂存空间不足", "将直接进行云端分片上传", "error");
+      }
       resource = await uploadToSupabase(item, metadata);
-      await removeLocalResource(localRecord.id);
-      state.resources = state.resources.filter((entry) => entry.id !== localRecord.id);
+      if (localRecord) {
+        await removeLocalResource(localRecord.id);
+        state.resources = state.resources.filter((entry) => entry.id !== localRecord.id);
+      }
     } else {
       resource = await uploadLocally(item, metadata);
     }
@@ -1516,7 +1532,7 @@ async function saveEdit(event) {
         throw new Error(payload.error || "保存失败");
       }
       savedResource = payload.resource;
-    } else if (state.mode === "supabase") {
+    } else if (state.mode === "supabase" && resource.storage !== "browser") {
       const response = await fetchWithTimeout(
         `${SUPABASE_URL}/rest/v1/${SUPABASE_TABLE}?id=eq.${encodeURIComponent(resource.id)}`,
         {
@@ -1751,6 +1767,12 @@ function bindEvents() {
     event.stopPropagation();
     elements.fileInput.click();
   });
+  const folderSupported = "webkitdirectory" in elements.folderInput || "directory" in elements.folderInput;
+  elements.chooseFolderButton.hidden = !folderSupported;
+  elements.chooseFolderButton.addEventListener("click", (event) => {
+    event.stopPropagation();
+    elements.folderInput.click();
+  });
   elements.clipboardButton.addEventListener("click", (event) => {
     event.stopPropagation();
     addFromClipboard();
@@ -1777,6 +1799,10 @@ function bindEvents() {
   elements.fileInput.addEventListener("change", () => {
     addFiles(elements.fileInput.files);
     elements.fileInput.value = "";
+  });
+  elements.folderInput.addEventListener("change", () => {
+    addFiles(elements.folderInput.files);
+    elements.folderInput.value = "";
   });
 
   elements.queueList.addEventListener("click", (event) => {
