@@ -1203,7 +1203,7 @@ select:focus-visible,
 .modal__backdrop {
   position: absolute;
   inset: 0;
-  background: rgba(12, 20, 27, 0.66);
+  background: rgba(8, 35, 30, 0.36);
   backdrop-filter: blur(5px);
 }
 
@@ -1274,7 +1274,7 @@ select:focus-visible,
   max-height: min(68vh, calc(100dvh - 230px));
   overflow: auto;
   border-radius: 8px;
-  background: #101820;
+  background: rgba(255, 255, 255, 0.34);
 }
 
 .preview-area img,
