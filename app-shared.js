@@ -39,6 +39,8 @@ const TYPE_META = {
 const API_BASE = "./api";
 const DB_NAME = "resource-hub-v1";
 const DB_STORE = "resources";
+const RESOURCE_CACHE_KEY = "qingzhi_resource_cache_v1";
+const RESOURCE_CACHE_LIMIT = 300;
 const SERVER_LIMIT = 250 * 1024 * 1024;
 const LOCAL_LIMIT = 100 * 1024 * 1024;
 const SUPABASE_SOURCE_LIMIT = 2 * 1024 * 1024 * 1024;
@@ -65,6 +67,38 @@ function writeAdminSession(enabled) {
     sessionStorage.setItem(ADMIN_SESSION_KEY, String(enabled));
   } catch (error) {
     // Session storage can be unavailable in locked-down browsing contexts.
+  }
+}
+
+function readResourceCache() {
+  try {
+    const cached = JSON.parse(localStorage.getItem(RESOURCE_CACHE_KEY) || "[]");
+    return Array.isArray(cached) ? cached : [];
+  } catch (error) {
+    return [];
+  }
+}
+
+function writeResourceCache(resources) {
+  try {
+    const compact = resources
+      .filter((resource) => resource.storage !== "browser")
+      .slice(0, RESOURCE_CACHE_LIMIT)
+      .map((resource) => ({
+        id: resource.id,
+        name: resource.name,
+        tags: resource.tags || [],
+        description: resource.description || "",
+        kind: resource.kind,
+        mime: resource.mime,
+        size: resource.size,
+        file_url: resource.url || resource.file_url || "",
+        file_path: resource.filePath || resource.file_path || "",
+        uploaded_at: resource.uploadedAt || resource.uploaded_at
+      }));
+    localStorage.setItem(RESOURCE_CACHE_KEY, JSON.stringify(compact));
+  } catch (error) {
+    // Cache failures should never block resource loading.
   }
 }
 
@@ -523,6 +557,13 @@ async function loadResources() {
     state.cloudRetryTimer = null;
   }
   try {
+    if (state.mode === "supabase" && !state.resources.length) {
+      const cachedResources = readResourceCache();
+      if (cachedResources.length) {
+        state.resources = cachedResources.map(normalizeResource).filter(Boolean);
+        renderAll();
+      }
+    }
     let resources = [];
     if (state.mode === "server") {
       const response = await fetchWithTimeout(`${API_BASE}/resources`, { cache: "no-store" }, 10000);
@@ -533,7 +574,7 @@ async function loadResources() {
       resources = Array.isArray(payload.resources) ? payload.resources : [];
     } else if (state.mode === "supabase") {
       const response = await fetchWithTimeout(
-        `${SUPABASE_URL}/rest/v1/${SUPABASE_TABLE}?select=*&order=uploaded_at.desc`,
+        `${SUPABASE_URL}/rest/v1/${SUPABASE_TABLE}?select=id,name,tags,description,kind,mime,size,file_url,file_path,uploaded_at&order=uploaded_at.desc`,
         { headers: supabaseHeaders(), cache: "no-store" },
         12000
       );
@@ -548,6 +589,7 @@ async function loadResources() {
         filePath: resource.file_path,
         uploadedAt: resource.uploaded_at
       }));
+      writeResourceCache(resources);
       const pendingResources = (await getAllLocalResources())
         .filter((resource) => resource.pendingCloud === true)
         .map((resource) => ({ ...resource, storage: "browser", pendingCloud: true }));
@@ -685,7 +727,7 @@ function resourceIconHTML(resource) {
   }
   const url = isImage(resource) ? getObjectUrl(resource) : "";
   if (url) {
-    return `<span class="file-avatar file-avatar--image"><img src="${escapeHTML(url)}" alt="" loading="lazy"></span>`;
+    return `<span class="file-avatar file-avatar--image"><img src="${escapeHTML(url)}" alt="" loading="lazy" decoding="async"></span>`;
   }
   return `<span class="file-avatar file-avatar--${escapeHTML(resource.kind)}" data-icon="${escapeHTML(typeIcon(resource.kind))}"></span>`;
 }
