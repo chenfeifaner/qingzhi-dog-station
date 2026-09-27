@@ -77,6 +77,7 @@ const state = {
   sort: "newest",
   activeUpload: false,
   syncingPending: false,
+  cloudRetryTimer: null,
   isAdmin: readAdminSession(),
   selectedIds: new Set(),
   pendingDeleteIds: [],
@@ -337,6 +338,10 @@ function submitAdmin(event) {
 
 function setStorageMode(mode) {
   state.mode = mode;
+  updateStorageBadge(mode);
+}
+
+function updateStorageBadge(mode) {
   const badges = [...elements.modeBadges];
   const setBadge = (className, label) => {
     badges.forEach((badge) => {
@@ -363,6 +368,11 @@ function setStorageMode(mode) {
 
   if (mode === "local") {
     setBadge("is-local", "浏览器本地模式");
+    return;
+  }
+
+  if (mode === "supabase-offline") {
+    setBadge("is-offline", "云端离线 · 本地暂存");
     return;
   }
 
@@ -508,6 +518,10 @@ async function requestPersistentStorage() {
 }
 
 async function loadResources() {
+  if (state.cloudRetryTimer) {
+    window.clearTimeout(state.cloudRetryTimer);
+    state.cloudRetryTimer = null;
+  }
   try {
     let resources = [];
     if (state.mode === "server") {
@@ -548,6 +562,9 @@ async function loadResources() {
       .map(normalizeResource)
       .filter(Boolean);
     state.selectedIds.clear();
+    if (state.mode === "supabase") {
+      updateStorageBadge("supabase");
+    }
     renderAll();
   } catch (error) {
     if (state.mode === "supabase") {
@@ -555,9 +572,10 @@ async function loadResources() {
         await openDatabase();
         state.resources = (await getAllLocalResources()).map(normalizeResource).filter(Boolean);
         state.selectedIds.clear();
-        setStorageMode("local");
+        updateStorageBadge("supabase-offline");
         renderAll();
-        showToast("云端数据库未就绪", "已切换到当前浏览器存储，请先执行 Supabase 初始化 SQL", "error");
+        showToast("云端暂时不可用", "已保留云端模式，当前显示本地暂存并自动重试", "error");
+        state.cloudRetryTimer = window.setTimeout(loadResources, 60000);
         return;
       } catch (fallbackError) {
         // Fall through to the normal error message.
