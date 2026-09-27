@@ -1,6 +1,8 @@
 const ICONS = {
   "archive": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="5" x="2" y="3" rx="1"/><path d="M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8"/><path d="M10 12h4"/></svg>',
   "check-circle": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M21.801 10A10 10 0 1 1 17 3.335"/><path d="m9 11 3 3L22 4"/></svg>',
+  "chevron-left": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>',
+  "chevron-right": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>',
   "cloud-upload": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M12 13v8"/><path d="M4 14.899A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 2.5 8.242"/><path d="m8 17 4-4 4 4"/></svg>',
   "clipboard-paste": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M15 2H9a1 1 0 0 0-1 1v2a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V3a1 1 0 0 0-1-1Z"/><path d="M8 4H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2h-2"/><path d="M9 12h6"/><path d="M9 16h6"/></svg>',
   "code": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="m16 18 6-6-6-6"/><path d="m8 6-6 6 6 6"/></svg>',
@@ -109,6 +111,8 @@ const state = {
   filter: "all",
   search: "",
   sort: "newest",
+  page: 1,
+  pageSize: 5,
   activeUpload: false,
   syncingPending: false,
   cloudRetryTimer: null,
@@ -150,6 +154,11 @@ const elements = {
   selectAllInput: document.getElementById("selectAllInput"),
   resourceTable: document.getElementById("resourceTable"),
   resourceList: document.getElementById("resourceList"),
+  pagination: document.getElementById("pagination"),
+  previousPageButton: document.getElementById("previousPageButton"),
+  nextPageButton: document.getElementById("nextPageButton"),
+  pageNumbers: document.getElementById("pageNumbers"),
+  pageSummary: document.getElementById("pageSummary"),
   emptyState: document.getElementById("emptyState"),
   emptyTitle: document.getElementById("emptyTitle"),
   emptyDescription: document.getElementById("emptyDescription"),
@@ -604,6 +613,7 @@ async function loadResources() {
       .map(normalizeResource)
       .filter(Boolean);
     state.selectedIds.clear();
+    state.page = 1;
     if (state.mode === "supabase") {
       updateStorageBadge("supabase");
     }
@@ -733,7 +743,11 @@ function resourceIconHTML(resource) {
 }
 
 function renderResources() {
-  const resources = filteredResources();
+  const allResources = filteredResources();
+  const totalPages = Math.max(1, Math.ceil(allResources.length / state.pageSize));
+  state.page = Math.min(Math.max(1, state.page), totalPages);
+  const pageStart = (state.page - 1) * state.pageSize;
+  const resources = allResources.slice(pageStart, pageStart + state.pageSize);
   const hasAnyResources = state.resources.length > 0;
   state.selectedIds = new Set(
     [...state.selectedIds].filter((id) => state.resources.some((resource) => resource.id === id))
@@ -746,6 +760,7 @@ function renderResources() {
     elements.emptyTitle.textContent = "还没有资源";
     elements.emptyDescription.textContent = "添加第一个文件后，它会显示在这里。";
     elements.resourceList.innerHTML = "";
+    elements.pagination.hidden = true;
     syncSelection(resources);
     return;
   }
@@ -756,6 +771,7 @@ function renderResources() {
     elements.emptyTitle.textContent = "没有匹配的资源";
     elements.emptyDescription.textContent = "换一个关键词或资源类型试试。";
     elements.resourceList.innerHTML = "";
+    elements.pagination.hidden = true;
     syncSelection(resources);
     return;
   }
@@ -809,6 +825,26 @@ function renderResources() {
 
   hydrateIcons(elements.resourceList);
   syncSelection(resources);
+  renderPagination(totalPages, allResources.length);
+}
+
+function renderPagination(totalPages, totalResources) {
+  elements.pagination.hidden = totalResources <= state.pageSize;
+  elements.pageSummary.textContent = `第 ${state.page} / ${totalPages} 页`;
+  elements.previousPageButton.disabled = state.page <= 1;
+  elements.nextPageButton.disabled = state.page >= totalPages;
+
+  const pages = [];
+  const start = Math.max(1, state.page - 2);
+  const end = Math.min(totalPages, start + 4);
+  for (let page = start; page <= end; page += 1) {
+    pages.push(`
+      <button class="pagination__page ${page === state.page ? "is-active" : ""}" type="button" data-page="${page}" aria-label="第 ${page} 页" ${page === state.page ? 'aria-current="page"' : ""}>
+        ${page}
+      </button>
+    `);
+  }
+  elements.pageNumbers.innerHTML = pages.join("");
 }
 
 function syncSelection(visibleResources = filteredResources()) {
@@ -833,7 +869,9 @@ function toggleSelected(id, selected) {
 }
 
 function setVisibleSelection(selected) {
-  filteredResources().forEach((resource) => {
+  const allResources = filteredResources();
+  const pageStart = (state.page - 1) * state.pageSize;
+  allResources.slice(pageStart, pageStart + state.pageSize).forEach((resource) => {
     if (selected) {
       state.selectedIds.add(resource.id);
     } else {
@@ -1791,6 +1829,7 @@ async function downloadResource(id) {
 
 function setFilter(filter) {
   state.filter = filter;
+  state.page = 1;
   document.querySelectorAll(".filter-tab").forEach((tab) => {
     const active = tab.dataset.filter === filter;
     tab.classList.toggle("is-active", active);
@@ -1861,14 +1900,33 @@ function bindEvents() {
 
   elements.searchInput.addEventListener("input", () => {
     state.search = elements.searchInput.value;
+    state.page = 1;
     renderResources();
   });
   elements.sortSelect.addEventListener("change", () => {
     state.sort = elements.sortSelect.value;
+    state.page = 1;
     renderResources();
   });
   document.querySelectorAll(".filter-tab").forEach((tab) => {
     tab.addEventListener("click", () => setFilter(tab.dataset.filter));
+  });
+  elements.previousPageButton.addEventListener("click", () => {
+    if (state.page > 1) {
+      state.page -= 1;
+      renderResources();
+    }
+  });
+  elements.nextPageButton.addEventListener("click", () => {
+    state.page += 1;
+    renderResources();
+  });
+  elements.pageNumbers.addEventListener("click", (event) => {
+    const pageButton = event.target.closest("[data-page]");
+    if (pageButton) {
+      state.page = Number(pageButton.dataset.page) || 1;
+      renderResources();
+    }
   });
   elements.selectAllInput.addEventListener("change", () => {
     setVisibleSelection(elements.selectAllInput.checked);
