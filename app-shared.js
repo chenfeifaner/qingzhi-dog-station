@@ -607,6 +607,23 @@ function parseContentRange(value) {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
+async function loadSupabaseFilteredTotal() {
+  const countUrl = new URL(buildSupabasePageUrl());
+  countUrl.searchParams.set("select", "id");
+  countUrl.searchParams.delete("limit");
+  countUrl.searchParams.delete("offset");
+  countUrl.searchParams.delete("order");
+  const response = await fetchWithTimeout(countUrl.toString(), {
+    headers: supabaseHeaders(),
+    cache: "no-store"
+  }, 15000);
+  if (!response.ok) {
+    return 0;
+  }
+  const rows = await response.json();
+  return Array.isArray(rows) ? rows.length : 0;
+}
+
 async function loadSupabasePage() {
   if (state.mode !== "supabase") {
     return;
@@ -630,6 +647,9 @@ async function loadSupabasePage() {
       throw new Error(`Supabase table unavailable: ${detail.slice(0, 120)}`);
     }
     state.supabaseTotal = parseContentRange(response.headers.get("Content-Range"));
+    if (!state.supabaseTotal) {
+      state.supabaseTotal = await loadSupabaseFilteredTotal();
+    }
     state.cloudOffline = false;
     const pageResources = await response.json();
     state.resources = pageResources.map((resource) => normalizeResource({
@@ -791,10 +811,13 @@ function renderAll() {
 }
 
 function renderSummary() {
-  const totalSize = state.resources.reduce((sum, resource) => sum + resource.size, 0);
-  elements.resourceCount.textContent = state.resources.length
-    ? `${state.resources.length} 个资源 · ${formatBytes(totalSize)}`
-    : "0 个资源";
+  const serverPaged = state.mode === "supabase" && !state.cloudOffline;
+  const totalCount = serverPaged
+    ? Math.max(state.supabaseTotal, state.resources.length)
+    : state.resources.length;
+  elements.resourceCount.textContent = serverPaged
+    ? `共 ${totalCount} 个资源 · 当前页 ${state.resources.length} 个`
+    : `${totalCount} 个资源`;
 }
 
 function filteredResources() {
