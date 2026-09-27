@@ -756,6 +756,46 @@ select:focus-visible,
   margin-bottom: 16px;
 }
 
+.usage-strip {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  margin-bottom: 16px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.42);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.34);
+}
+
+.usage-item {
+  min-width: 0;
+  padding: 12px 14px;
+  border-right: 1px solid rgba(23, 33, 43, 0.08);
+}
+
+.usage-item:last-child {
+  border-right: 0;
+}
+
+.usage-item span {
+  display: block;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 800;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.usage-item strong {
+  display: block;
+  overflow: hidden;
+  margin-top: 5px;
+  color: var(--ink);
+  font-size: 14px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .filter-tabs {
   display: flex;
   flex-wrap: wrap;
@@ -1403,6 +1443,23 @@ select:focus-visible,
     display: none;
   }
 
+  .usage-strip {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .usage-item {
+    border-right: 1px solid rgba(23, 33, 43, 0.08);
+    border-bottom: 1px solid rgba(23, 33, 43, 0.08);
+  }
+
+  .usage-item:nth-child(even) {
+    border-right: 0;
+  }
+
+  .usage-item:last-child {
+    border-bottom: 0;
+  }
+
   .resource-table {
     border: 0;
   }
@@ -1510,6 +1567,10 @@ select:focus-visible,
   .resources-head {
     align-items: flex-start;
     flex-direction: column;
+  }
+
+  .usage-item {
+    padding: 10px 12px;
   }
 
   .drop-zone {
