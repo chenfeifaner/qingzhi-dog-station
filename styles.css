@@ -571,10 +571,9 @@ select:focus-visible,
 .file-avatar img {
   width: 100%;
   height: 100%;
-  padding: 2px;
   border-radius: inherit;
-  background: rgba(255, 255, 255, 0.72);
-  object-fit: contain;
+  background: transparent;
+  object-fit: cover;
 }
 
 .file-avatar--image {
@@ -1341,10 +1340,6 @@ select:focus-visible,
   overflow-wrap: anywhere;
   white-space: normal;
   word-break: break-word;
-}
-
-.preview-meta__item--wide {
-  grid-column: 1 / -1;
 }
 
 .modal__actions {
