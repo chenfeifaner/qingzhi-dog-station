@@ -6,7 +6,8 @@
   <meta name="description" content="青芝犬之站是一个支持批量上传、检索、预览和下载的资源管理页面。">
   <meta name="theme-color" content="#0b2925">
   <title>青芝犬之站 · 资源上传中心</title>
-  <link rel="stylesheet" href="styles.css?v=qingque-jade-16">
+  <link rel="icon" href="favicon.svg?v=1" type="image/svg+xml">
+  <link rel="stylesheet" href="styles.css?v=qingque-jade-17">
 </head>
 <body>
   <div class="app-shell">
@@ -52,6 +53,7 @@
 
           <div class="drop-zone" id="dropZone" tabindex="0" role="button" aria-label="选择要上传的资源">
             <input id="fileInput" class="file-input-visually-hidden" type="file" multiple>
+            <input id="folderInput" class="file-input-visually-hidden" type="file" webkitdirectory directory multiple>
             <span class="drop-zone__icon" data-icon="cloud-upload"></span>
             <div class="drop-zone__copy">
               <strong>拖放文件到这里</strong>
@@ -61,6 +63,10 @@
               <button class="button button-primary" id="chooseFilesButton" type="button">
                 <span data-icon="folder-open"></span>
                 <span>选择文件</span>
+              </button>
+              <button class="button button-secondary" id="chooseFolderButton" type="button">
+                <span data-icon="folder-tree"></span>
+                <span>选择文件夹</span>
               </button>
               <button class="button button-secondary clipboard-button" id="clipboardButton" type="button">
                 <span data-icon="clipboard-paste"></span>
@@ -307,6 +313,6 @@
 
   <div class="toast-region" id="toastRegion" aria-live="polite" aria-atomic="true"></div>
 
-  <script src="app-shared.js?v=qingque-jade-16"></script>
+  <script src="app-shared.js?v=qingque-jade-17"></script>
 </body>
 </html>
