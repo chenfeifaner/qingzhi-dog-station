@@ -75,6 +75,7 @@ const state = {
   search: "",
   sort: "newest",
   activeUpload: false,
+  syncingPending: false,
   isAdmin: readAdminSession(),
   selectedIds: new Set(),
   pendingDeleteIds: [],
@@ -92,6 +93,7 @@ const elements = {
   fileInput: document.getElementById("fileInput"),
   chooseFilesButton: document.getElementById("chooseFilesButton"),
   clipboardButton: document.getElementById("clipboardButton"),
+  resourceNameInput: document.getElementById("resourceNameInput"),
   categoryInput: document.getElementById("categoryInput"),
   tagsInput: document.getElementById("tagsInput"),
   descriptionInput: document.getElementById("descriptionInput"),
@@ -504,7 +506,7 @@ async function loadResources() {
       }
       const payload = await response.json();
       resources = Array.isArray(payload.resources) ? payload.resources : [];
-    } else if (state.mode === "supabase") {
+    } else if (state.mode === "supabase" && resource.storage !== "browser") {
       const response = await fetchWithTimeout(
         `${SUPABASE_URL}/rest/v1/${SUPABASE_TABLE}?select=*&order=uploaded_at.desc`,
         { headers: supabaseHeaders(), cache: "no-store" },
@@ -521,6 +523,10 @@ async function loadResources() {
         filePath: resource.file_path,
         uploadedAt: resource.uploaded_at
       }));
+      const pendingResources = (await getAllLocalResources())
+        .filter((resource) => resource.pendingCloud === true)
+        .map((resource) => ({ ...resource, storage: "browser", pendingCloud: true }));
+      resources = [...pendingResources, ...resources];
     } else if (state.mode === "local") {
       resources = await getAllLocalResources();
     } else {
@@ -550,6 +556,18 @@ async function loadResources() {
   }
 }
 
+function parseChunkManifest(filePath) {
+  if (typeof filePath !== "string" || !filePath.startsWith("chunked:")) {
+    return null;
+  }
+  try {
+    const manifest = JSON.parse(filePath.slice("chunked:".length));
+    return manifest && Array.isArray(manifest.parts) ? manifest : null;
+  } catch (error) {
+    return null;
+  }
+}
+
 function normalizeResource(resource) {
   if (!resource || !resource.id) {
     return null;
@@ -562,7 +580,9 @@ function normalizeResource(resource) {
       ? resource.tags.split(",").map((tag) => tag.trim()).filter(Boolean)
       : [];
   const filePath = resource.filePath || resource.file_path || "";
-  const compressed = resource.compressed === true || filePath.endsWith(".qzg");
+  const manifest = parseChunkManifest(filePath);
+  const compressed = resource.compressed === true || filePath.endsWith(".qzg") || Boolean(manifest?.compressed);
+  const chunkParts = manifest?.parts || [];
   return {
     ...resource,
     name,
@@ -572,6 +592,8 @@ function normalizeResource(resource) {
     size: Number(resource.size || resource.fileSize) || 0,
     url: resource.url || resource.file_url || "",
     filePath,
+    chunked: chunkParts.length > 1,
+    chunkParts,
     compressed,
     originalName: resource.originalName || name,
     originalMime: resource.originalMime || resource.mime || "application/octet-stream",
@@ -630,6 +652,9 @@ function filteredResources() {
 }
 
 function resourceIconHTML(resource) {
+  if (resource.chunked) {
+    return `<span class="file-avatar file-avatar--${escapeHTML(resource.kind)}" data-icon="${escapeHTML(typeIcon(resource.kind))}"></span>`;
+  }
   const url = isImage(resource) ? getObjectUrl(resource) : "";
   if (url) {
     return `<span class="file-avatar file-avatar--image"><img src="${escapeHTML(url)}" alt="" loading="lazy"></span>`;
@@ -918,20 +943,25 @@ function clearQueue() {
   renderQueue();
 }
 
-function uploadMetadata(file) {
+function uploadMetadata(file, index = 0, total = 1) {
+  const customName = elements.resourceNameInput.value.trim();
+  const name = customName
+    ? (total > 1 ? `${customName} ${index + 1}` : customName)
+    : file.name;
   return {
     fileName: file.name,
+    name,
     category: elements.categoryInput.value || "其他",
     tags: elements.tagsInput.value.split(/[,，]/).map((tag) => tag.trim()).filter(Boolean).slice(0, 8),
     description: elements.descriptionInput.value.trim()
   };
 }
 
-function uploadWithProgress(item) {
+function uploadWithProgress(item, metadata) {
   return new Promise((resolve, reject) => {
-    const metadata = uploadMetadata(item.file);
     const params = new URLSearchParams();
     params.set("fileName", metadata.fileName);
+    params.set("displayName", metadata.name);
     params.set("category", metadata.category);
     params.set("tags", metadata.tags.join(","));
     params.set("description", metadata.description);
@@ -966,14 +996,13 @@ function uploadWithProgress(item) {
   });
 }
 
-async function uploadLocally(item) {
+async function uploadLocally(item, metadata, options = {}) {
   updateQueueItem(item.id, { status: "uploading", progress: 12 });
   await requestPersistentStorage();
 
-  const metadata = uploadMetadata(item.file);
   const resource = {
     id: createId(),
-    name: item.file.name,
+    name: metadata.name || item.file.name,
     category: metadata.category,
     tags: metadata.tags,
     description: metadata.description,
@@ -982,7 +1011,8 @@ async function uploadLocally(item) {
     size: item.file.size,
     uploadedAt: new Date().toISOString(),
     blob: item.file,
-    storage: "browser"
+    storage: "browser",
+    pendingCloud: options.pendingCloud === true
   };
 
   updateQueueItem(item.id, { progress: 42 });
@@ -1040,97 +1070,167 @@ async function prepareSupabaseUpload(file) {
   }
 }
 
-async function uploadToSupabase(item) {
-  const prepared = await prepareSupabaseUpload(item.file);
+function uploadBlobWithRetry(blob, uploadUrl, onProgress, attempts = 3) {
   return new Promise((resolve, reject) => {
-    const metadata = uploadMetadata(item.file);
-    const id = createId();
-    const extension = (item.file.name.match(/\.[a-zA-Z0-9]+$/) || [""])[0].toLowerCase();
-    const objectPath = `${id}/${id}${extension}${prepared.compressed ? ".qzg" : ""}`;
-    const uploadUrl = `${SUPABASE_URL}/storage/v1/object/${SUPABASE_BUCKET}/${objectPath}`;
-    const xhr = new XMLHttpRequest();
-    xhr.open("POST", uploadUrl);
-    xhr.setRequestHeader("apikey", SUPABASE_PUBLISHABLE_KEY);
-    xhr.setRequestHeader("Authorization", `Bearer ${SUPABASE_PUBLISHABLE_KEY}`);
-    xhr.setRequestHeader("Content-Type", prepared.blob.type || "application/octet-stream");
-    xhr.setRequestHeader("x-upsert", "false");
-    xhr.upload.onprogress = (event) => {
-      if (event.lengthComputable) {
-        updateQueueItem(item.id, {
-          status: "uploading",
-          progress: Math.min(94, (event.loaded / event.total) * 100)
-        });
-      }
-    };
-    xhr.onerror = () => reject(new Error("云端存储连接中断"));
-    xhr.onabort = () => reject(new Error("上传已取消"));
-    xhr.onload = async () => {
-      if (xhr.status < 200 || xhr.status >= 300) {
-        reject(new Error(`文件上传失败（${xhr.status}）`));
-        return;
-      }
-
-      const fileUrl = supabasePublicFileUrl(objectPath);
-      const row = {
-        id,
-        name: item.file.name,
-        category: metadata.category,
-        tags: metadata.tags,
-        description: metadata.description,
-        kind: item.kind,
-        mime: prepared.originalMime,
-        size: prepared.originalSize,
-        file_url: fileUrl,
-        file_path: objectPath
-      };
-
-      try {
-        updateQueueItem(item.id, { progress: 97 });
-        const response = await fetchWithTimeout(`${SUPABASE_URL}/rest/v1/${SUPABASE_TABLE}`, {
-          method: "POST",
-          headers: supabaseHeaders({
-            "Content-Type": "application/json",
-            Prefer: "return=representation"
-          }),
-          body: JSON.stringify(row)
-        }, 15000);
-        if (!response.ok) {
-          const detail = await response.text();
-          throw new Error(`资源信息保存失败：${detail.slice(0, 140)}`);
+    const attemptUpload = (attempt) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open("POST", uploadUrl);
+      xhr.setRequestHeader("apikey", SUPABASE_PUBLISHABLE_KEY);
+      xhr.setRequestHeader("Authorization", `Bearer ${SUPABASE_PUBLISHABLE_KEY}`);
+      xhr.setRequestHeader("Content-Type", blob.type || "application/octet-stream");
+      xhr.setRequestHeader("x-upsert", "true");
+      xhr.upload.onprogress = (event) => {
+        if (event.lengthComputable && onProgress) {
+          onProgress(event.loaded / event.total);
         }
-        const inserted = await response.json();
-        const saved = Array.isArray(inserted) ? inserted[0] : row;
-        resolve({ ...saved, url: fileUrl, filePath: objectPath });
-      } catch (error) {
-        removeSupabaseObject({ filePath: objectPath }).catch(() => {});
-        reject(error);
+      };
+      xhr.onerror = () => retry(new Error("网络连接中断"));
+      xhr.onabort = () => reject(new Error("上传已取消"));
+      xhr.onload = () => {
+        if (xhr.status >= 200 && xhr.status < 300) {
+          resolve();
+          return;
+        }
+        retry(new Error(`分片上传失败（${xhr.status}）`));
+      };
+      xhr.send(blob);
+
+      function retry(error) {
+        if (attempt >= attempts) {
+          reject(error);
+          return;
+        }
+        window.setTimeout(() => attemptUpload(attempt + 1), attempt * 900);
       }
     };
-    xhr.send(prepared.blob);
+    attemptUpload(1);
   });
+}
+
+async function verifySupabaseObject(objectPath) {
+  const response = await fetchWithTimeout(supabasePublicFileUrl(objectPath), {
+    method: "GET",
+    headers: { Range: "bytes=0-0" },
+    cache: "no-store"
+  }, 15000);
+  if (!response.ok && response.status !== 206) {
+    throw new Error("云端分片校验失败");
+  }
+}
+
+async function uploadToSupabase(item, metadata) {
+  const prepared = await prepareSupabaseUpload(item.file);
+  const id = createId();
+  const extension = (item.file.name.match(/\.[a-zA-Z0-9]+$/) || [""])[0].toLowerCase();
+  const chunkSize = 45 * 1024 * 1024;
+  const totalSize = prepared.blob.size;
+  const parts = [];
+  for (let offset = 0, index = 0; offset < totalSize; offset += chunkSize, index += 1) {
+    parts.push({
+      blob: prepared.blob.slice(offset, Math.min(offset + chunkSize, totalSize)),
+      path: `${id}/part-${String(index + 1).padStart(4, "0")}.part`
+    });
+  }
+
+  const uploadedPaths = [];
+  try {
+    for (let index = 0; index < parts.length; index += 1) {
+      const part = parts[index];
+      await uploadBlobWithRetry(
+        part.blob,
+        `${SUPABASE_URL}/storage/v1/object/${SUPABASE_BUCKET}/${part.path}`,
+        (partProgress) => {
+          const completed = index / parts.length;
+          const current = (partProgress || 0) / parts.length;
+          updateQueueItem(item.id, {
+            status: "uploading",
+            progress: Math.min(94, (completed + current) * 94)
+          });
+        }
+      );
+      uploadedPaths.push(part.path);
+    }
+
+    for (const path of uploadedPaths) {
+      await verifySupabaseObject(path);
+    }
+    updateQueueItem(item.id, { progress: 96 });
+
+    const fileUrl = supabasePublicFileUrl(uploadedPaths[0]);
+    const manifest = uploadedPaths.length > 1
+      ? `chunked:${JSON.stringify({
+        version: 1,
+        compressed: prepared.compressed,
+        parts: uploadedPaths
+      })}`
+      : uploadedPaths[0];
+    const row = {
+      id,
+      name: metadata.name || item.file.name,
+      category: metadata.category,
+      tags: metadata.tags,
+      description: metadata.description,
+      kind: item.kind,
+      mime: prepared.originalMime,
+      size: prepared.originalSize,
+      file_url: fileUrl,
+      file_path: manifest
+    };
+
+    const response = await fetchWithTimeout(`${SUPABASE_URL}/rest/v1/${SUPABASE_TABLE}`, {
+      method: "POST",
+      headers: supabaseHeaders({
+        "Content-Type": "application/json",
+        Prefer: "return=representation"
+      }),
+      body: JSON.stringify(row)
+    }, 20000);
+    if (!response.ok) {
+      const detail = await response.text();
+      throw new Error(`资源信息保存失败：${detail.slice(0, 140)}`);
+    }
+    const inserted = await response.json();
+    const saved = Array.isArray(inserted) ? inserted[0] : row;
+    return { ...saved, url: fileUrl, filePath: manifest };
+  } catch (error) {
+    removeSupabaseObject({ filePath: uploadedPaths.join(",") }).catch(() => {});
+    throw error;
+  }
 }
 
 async function removeSupabaseObject(resource) {
   if (!resource || !resource.filePath) {
     return;
   }
+  const manifest = parseChunkManifest(resource.filePath);
+  const paths = manifest
+    ? manifest.parts
+    : resource.filePath.includes(",")
+      ? resource.filePath.split(",").filter(Boolean)
+      : [resource.filePath];
   await fetchWithTimeout(`${SUPABASE_URL}/storage/v1/object/${SUPABASE_BUCKET}`, {
     method: "DELETE",
     headers: supabaseHeaders({ "Content-Type": "application/json" }),
-    body: JSON.stringify({ prefixes: [resource.filePath] })
+    body: JSON.stringify({ prefixes: paths })
   }, 12000);
 }
 
-async function uploadOne(item) {
+async function uploadOne(item, metadata) {
   updateQueueItem(item.id, { status: "uploading", progress: 1, error: "" });
+  let localRecord = null;
   try {
     let resource;
     if (state.mode === "server") {
-      resource = await uploadWithProgress(item);
+      resource = await uploadWithProgress(item, metadata);
     } else if (state.mode === "supabase") {
-      resource = await uploadToSupabase(item);
+      localRecord = await uploadLocally(item, metadata, { pendingCloud: true });
+      state.resources = [normalizeResource(localRecord), ...state.resources];
+      renderAll();
+      resource = await uploadToSupabase(item, metadata);
+      await removeLocalResource(localRecord.id);
+      state.resources = state.resources.filter((entry) => entry.id !== localRecord.id);
     } else {
-      resource = await uploadLocally(item);
+      resource = await uploadLocally(item, metadata);
     }
     const normalized = normalizeResource(resource);
     state.resources = [normalized, ...state.resources.filter((entry) => entry.id !== normalized.id)];
@@ -1144,6 +1244,46 @@ async function uploadOne(item) {
       error: error.message || "上传失败"
     });
     return false;
+  }
+}
+
+async function syncPendingCloudUploads() {
+  if (state.mode !== "supabase" || state.syncingPending) {
+    return;
+  }
+  const pendingResources = (await getAllLocalResources())
+    .filter((resource) => resource.pendingCloud === true && resource.blob);
+  if (!pendingResources.length) {
+    return;
+  }
+
+  state.syncingPending = true;
+  let syncedCount = 0;
+  for (const pending of pendingResources) {
+    try {
+      const cloudResource = await uploadToSupabase(
+        { id: pending.id, file: pending.blob, kind: pending.kind },
+        {
+          name: pending.name,
+          category: pending.category,
+          tags: pending.tags || [],
+          description: pending.description || ""
+        }
+      );
+      await removeLocalResource(pending.id);
+      state.resources = [
+        normalizeResource(cloudResource),
+        ...state.resources.filter((resource) => resource.id !== pending.id && resource.id !== cloudResource.id)
+      ];
+      syncedCount += 1;
+      renderAll();
+    } catch (error) {
+      // The local copy remains queued for the next visit.
+    }
+  }
+  state.syncingPending = false;
+  if (syncedCount) {
+    showToast("本地暂存已同步到云端", `成功上传 ${syncedCount} 个资源`);
   }
 }
 
@@ -1164,8 +1304,10 @@ async function startUpload() {
   let successCount = 0;
   let failedCount = 0;
 
-  for (const item of pending) {
-    const success = await uploadOne(item);
+  for (let index = 0; index < pending.length; index += 1) {
+    const item = pending[index];
+    const metadata = uploadMetadata(item.file, index, pending.length);
+    const success = await uploadOne(item, metadata);
     if (success) {
       successCount += 1;
     } else {
@@ -1177,6 +1319,7 @@ async function startUpload() {
   renderQueue();
 
   if (successCount && !failedCount) {
+    elements.resourceNameInput.value = "";
     elements.tagsInput.value = "";
     elements.descriptionInput.value = "";
     showToast("全部上传完成", `${successCount} 个资源已加入资源库`);
@@ -1202,7 +1345,15 @@ function openPreview(id) {
   const url = getObjectUrl(resource);
   let preview = "";
 
-  if (resource.kind === "image" && url) {
+  if (resource.chunked) {
+    preview = `
+      <div class="preview-placeholder">
+        <span data-icon="${escapeHTML(typeIcon(resource.kind))}"></span>
+        <strong>分片资源</strong>
+        <span>文件保存在多个云端分片中，下载时会自动合并并恢复。</span>
+      </div>
+    `;
+  } else if (resource.kind === "image" && url) {
     preview = `<img src="${escapeHTML(url)}" alt="${escapeHTML(resource.name)}">`;
   } else if (resource.kind === "video" && url) {
     preview = `<video src="${escapeHTML(url)}" controls autoplay playsinline preload="metadata"></video>`;
@@ -1453,18 +1604,22 @@ async function deleteResources(ids) {
           }
         } else if (state.mode === "supabase") {
           const resource = findResource(id);
-          await removeSupabaseObject(resource);
-          const response = await fetchWithTimeout(
-            `${SUPABASE_URL}/rest/v1/${SUPABASE_TABLE}?id=eq.${encodeURIComponent(id)}`,
-            {
-              method: "DELETE",
-              headers: supabaseHeaders({ Prefer: "return=minimal" })
-            },
-            12000
-          );
-          if (!response.ok) {
-            const detail = await response.text();
-            throw new Error(`删除失败：${detail.slice(0, 140)}`);
+          if (resource?.storage === "browser") {
+            await removeLocalResource(id);
+          } else {
+            await removeSupabaseObject(resource);
+            const response = await fetchWithTimeout(
+              `${SUPABASE_URL}/rest/v1/${SUPABASE_TABLE}?id=eq.${encodeURIComponent(id)}`,
+              {
+                method: "DELETE",
+                headers: supabaseHeaders({ Prefer: "return=minimal" })
+              },
+              12000
+            );
+            if (!response.ok) {
+              const detail = await response.text();
+              throw new Error(`删除失败：${detail.slice(0, 140)}`);
+            }
           }
         } else {
           await removeLocalResource(id);
@@ -1520,12 +1675,30 @@ async function downloadResource(id) {
 
   if (state.mode === "supabase" && resource.url) {
     try {
-      showToast("正在下载到本地", resource.compressed ? "下载前会自动恢复原文件" : resource.name);
-      const response = await fetchWithTimeout(resource.url, {}, 120000);
-      if (!response.ok) {
-        throw new Error("云端文件读取失败");
+      showToast(
+        resource.chunked ? "正在合并分片" : "正在下载到本地",
+        resource.compressed ? "下载前会自动恢复原文件" : resource.name
+      );
+      let downloadedBlob;
+      if (resource.chunked) {
+        const partBlobs = [];
+        for (const partPath of resource.chunkParts) {
+          const partResponse = await fetchWithTimeout(supabasePublicFileUrl(partPath), {}, 120000);
+          if (!partResponse.ok) {
+            throw new Error("云端分片读取失败");
+          }
+          partBlobs.push(await partResponse.blob());
+        }
+        downloadedBlob = new Blob(partBlobs, {
+          type: resource.compressed ? "application/gzip" : resource.originalMime
+        });
+      } else {
+        const response = await fetchWithTimeout(resource.url, {}, 120000);
+        if (!response.ok) {
+          throw new Error("云端文件读取失败");
+        }
+        downloadedBlob = await response.blob();
       }
-      const downloadedBlob = await response.blob();
       const originalBlob = resource.compressed ? await decompressBlob(downloadedBlob) : downloadedBlob;
       saveBlob(originalBlob, resource.originalName || resource.name);
       showToast(resource.compressed ? "原文件已恢复并保存" : "文件已保存到本地", resource.originalName || resource.name);
@@ -1713,17 +1886,16 @@ async function init() {
   elements.adminButton.classList.toggle("is-active", state.isAdmin);
   bindEvents();
   await detectStorageMode();
-  if (state.mode === "local") {
-    try {
-      await openDatabase();
-    } catch (error) {
-      setStorageMode("error");
-      showToast("本地存储不可用", error.message || "浏览器拒绝创建数据库", "error");
-      return;
-    }
+  try {
+    await openDatabase();
+  } catch (error) {
+    setStorageMode("error");
+    showToast("本地存储不可用", error.message || "浏览器拒绝创建数据库", "error");
+    return;
   }
   await loadResources();
   startSupabaseKeepAlive();
+  syncPendingCloudUploads();
 }
 
 init();
