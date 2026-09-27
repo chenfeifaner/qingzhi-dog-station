@@ -1596,7 +1596,7 @@ function openPreview(id) {
   }
 
   state.previewId = id;
-  elements.previewTitle.textContent = "文件预览";
+  elements.previewTitle.textContent = resource.originalName || resource.name;
   const url = getObjectUrl(resource);
   let preview = "";
 
@@ -1629,7 +1629,6 @@ function openPreview(id) {
   elements.previewArea.innerHTML = preview;
   const tags = resource.tags.length ? resource.tags.join("、") : "无标签";
   elements.previewMeta.innerHTML = `
-    <div class="preview-meta__item preview-meta__item--wide"><span>文件名称</span><strong>${escapeHTML(resource.originalName || resource.name)}</strong></div>
     <div class="preview-meta__item"><span>文件大小</span><strong>${escapeHTML(formatBytes(resource.size))}</strong></div>
     <div class="preview-meta__item"><span>存储方式</span><strong>${resource.storage === "browser" ? "本地暂存" : resource.chunked ? "云端分片" : "云端文件"}</strong></div>
     <div class="preview-meta__item"><span>标签</span><strong title="${escapeHTML(tags)}">${escapeHTML(tags)}</strong></div>
