@@ -797,9 +797,10 @@ function addFiles(fileList) {
     return;
   }
 
+  const cloudFileAllowed = SUPABASE_ENABLED && window.location.protocol === "https:";
   const limit = state.mode === "server"
     ? SERVER_LIMIT
-    : state.mode === "supabase"
+    : cloudFileAllowed || state.mode === "supabase"
       ? SUPABASE_SOURCE_LIMIT
       : LOCAL_LIMIT;
   const queuedKeys = new Set(state.queue.map((item) => `${fileDisplayPath(item.file)}:${item.file.size}:${item.file.lastModified}`));
