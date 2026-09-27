@@ -10,7 +10,7 @@
   <link rel="preconnect" href="https://vdihfdrylanbfyrhvnnl.supabase.co" crossorigin>
   <link rel="dns-prefetch" href="https://vdihfdrylanbfyrhvnnl.supabase.co">
   <link rel="preload" as="image" href="assets/qingque-bg.jpg" fetchpriority="high">
-  <link rel="stylesheet" href="styles.css?v=qingque-jade-23">
+  <link rel="stylesheet" href="styles.css?v=qingque-jade-24">
 </head>
 <body>
   <div class="app-shell">
@@ -172,6 +172,17 @@
             <div class="resource-table__body" id="resourceList"></div>
           </div>
 
+          <nav class="pagination" id="pagination" aria-label="资源分页" hidden>
+            <button class="pagination__arrow" id="previousPageButton" type="button" aria-label="上一页">
+              <span data-icon="chevron-left"></span>
+            </button>
+            <div class="pagination__pages" id="pageNumbers"></div>
+            <span class="pagination__summary" id="pageSummary">第 1 / 1 页</span>
+            <button class="pagination__arrow" id="nextPageButton" type="button" aria-label="下一页">
+              <span data-icon="chevron-right"></span>
+            </button>
+          </nav>
+
           <div class="empty-state" id="emptyState" hidden>
             <span data-icon="package-open"></span>
             <strong id="emptyTitle">还没有资源</strong>
@@ -291,6 +302,6 @@
 
   <div class="toast-region" id="toastRegion" aria-live="polite" aria-atomic="true"></div>
 
-  <script src="app-shared.js?v=qingque-jade-23" defer></script>
+  <script src="app-shared.js?v=qingque-jade-24" defer></script>
 </body>
 </html>
