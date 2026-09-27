@@ -26,6 +26,25 @@ html {
   min-height: 100%;
   background: #0b2925;
   scroll-behavior: smooth;
+  scrollbar-gutter: stable;
+  scrollbar-color: rgba(31, 138, 112, 0.55) rgba(255, 255, 255, 0.14);
+  scrollbar-width: thin;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+::-webkit-scrollbar-thumb {
+  border: 2px solid transparent;
+  border-radius: 999px;
+  background: rgba(31, 138, 112, 0.55);
+  background-clip: padding-box;
 }
 
 body {
@@ -1192,7 +1211,7 @@ select:focus-visible,
   position: relative;
   z-index: 1;
   width: min(760px, 100%);
-  max-height: calc(100vh - 48px);
+  max-height: calc(100dvh - 32px);
   overflow: auto;
   border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 8px;
@@ -1250,8 +1269,9 @@ select:focus-visible,
 .preview-area {
   display: grid;
   place-items: center;
-  min-height: 280px;
-  max-height: 58vh;
+  width: 100%;
+  min-height: min(280px, 45dvh);
+  max-height: min(68vh, calc(100dvh - 230px));
   overflow: auto;
   border-radius: 8px;
   background: #101820;
@@ -1263,7 +1283,7 @@ select:focus-visible,
   width: auto;
   height: auto;
   max-width: 100%;
-  max-height: 58vh;
+  max-height: min(68vh, calc(100dvh - 230px));
   object-fit: contain;
   margin: auto;
 }
@@ -1725,7 +1745,7 @@ select:focus-visible,
 
   .preview-area img,
   .preview-area video {
-    max-height: 50vh;
+    max-height: min(58dvh, calc(100dvh - 200px));
   }
 
   .modal__actions .button {
