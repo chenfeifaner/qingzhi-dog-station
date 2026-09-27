@@ -6,7 +6,7 @@
   <meta name="description" content="青芝犬之站是一个支持批量上传、检索、预览和下载的资源管理页面。">
   <meta name="theme-color" content="#0b2925">
   <title>青芝犬之站 · 资源上传中心</title>
-  <link rel="stylesheet" href="styles.css?v=qingque-jade-13">
+  <link rel="stylesheet" href="styles.css?v=qingque-jade-14">
 </head>
 <body>
   <div class="app-shell">
@@ -20,7 +20,7 @@
           </span>
         </a>
         <div class="topbar__actions">
-          <div class="mode-badge" id="modeBadge">
+          <div class="mode-badge" data-mode-badge>
             <span class="status-dot"></span>
             <span>正在检测存储</span>
           </div>
@@ -42,7 +42,13 @@
               <p class="eyebrow">UPLOAD</p>
               <h2>上传新资源</h2>
             </div>
-            <span class="panel__note" id="uploadLimit">单文件最大 250 MB</span>
+            <div class="upload-head-meta">
+              <div class="mode-badge mobile-mode-badge" data-mode-badge>
+                <span class="status-dot"></span>
+                <span>正在检测存储</span>
+              </div>
+              <span class="panel__note" id="uploadLimit">单文件最大 250 MB</span>
+            </div>
           </div>
 
           <div class="drop-zone" id="dropZone" tabindex="0" role="button" aria-label="选择要上传的资源">
@@ -302,6 +308,6 @@
 
   <div class="toast-region" id="toastRegion" aria-live="polite" aria-atomic="true"></div>
 
-  <script src="app.js?v=qingque-jade-13"></script>
+  <script src="app.js?v=qingque-jade-14"></script>
 </body>
 </html>
