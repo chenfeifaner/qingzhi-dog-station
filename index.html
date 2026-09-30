@@ -10,7 +10,7 @@
   <link rel="preconnect" href="https://vdihfdrylanbfyrhvnnl.supabase.co" crossorigin>
   <link rel="dns-prefetch" href="https://vdihfdrylanbfyrhvnnl.supabase.co">
   <link rel="preload" as="image" href="assets/qingque-bg.jpg" fetchpriority="high">
-  <link rel="stylesheet" href="styles.css?v=qingque-jade-35">
+  <link rel="stylesheet" href="styles.css?v=qingque-jade-36">
 </head>
 <body>
   <div class="app-shell">
@@ -81,15 +81,15 @@
           <div class="upload-options">
             <label class="field field--grow">
               <span>资源名称</span>
-              <input id="resourceNameInput" type="text" maxlength="120" placeholder="留空则使用原文件名">
+              <input id="resourceNameInput" name="resourceName" type="text" maxlength="120" autocomplete="off" placeholder="留空则使用原文件名">
             </label>
             <label class="field field--grow">
               <span>标签</span>
-              <input id="tagsInput" type="text" maxlength="80" placeholder="例如：首页、插画、v2">
+              <input id="tagsInput" name="tags" type="text" maxlength="80" autocomplete="off" placeholder="例如：首页、插画、v2">
             </label>
             <label class="field field--grow">
               <span>备注</span>
-              <input id="descriptionInput" type="text" maxlength="120" placeholder="可选，说明资源用途或版本">
+              <input id="descriptionInput" name="description" type="text" maxlength="120" autocomplete="off" placeholder="可选，说明资源用途或版本">
             </label>
           </div>
 
@@ -272,15 +272,15 @@
         <input type="hidden" name="id">
         <label class="field">
           <span>文件名称</span>
-          <input type="text" name="name" maxlength="120" required>
+          <input type="text" name="name" maxlength="120" autocomplete="off" required>
         </label>
         <label class="field">
           <span>标签</span>
-          <input type="text" name="tags" maxlength="120" placeholder="使用逗号分隔">
+          <input type="text" name="tags" maxlength="120" autocomplete="off" placeholder="使用逗号分隔">
         </label>
         <label class="field">
           <span>备注</span>
-          <input type="text" name="description" maxlength="160" placeholder="说明资源用途或版本">
+          <input type="text" name="description" maxlength="160" autocomplete="off" placeholder="说明资源用途或版本">
         </label>
         <p class="form-status" id="editStatus" role="status"></p>
         <div class="modal__actions">
@@ -306,6 +306,6 @@
 
   <div class="toast-region" id="toastRegion" aria-live="polite" aria-atomic="true"></div>
 
-  <script src="app-shared.js?v=qingque-jade-35" defer></script>
+  <script src="app-shared.js?v=qingque-jade-36" defer></script>
 </body>
 </html>
