@@ -1095,7 +1095,141 @@ function clearSelection() {
   renderResources();
 }
 
-function addFiles(fileList) {
+const ZIP_CRC_TABLE = (() => {
+  const table = new Uint32Array(256);
+  for (let index = 0; index < 256; index += 1) {
+    let value = index;
+    for (let bit = 0; bit < 8; bit += 1) {
+      value = (value & 1) ? (0xedb88320 ^ (value >>> 1)) : (value >>> 1);
+    }
+    table[index] = value >>> 0;
+  }
+  return table;
+})();
+
+function zipCrc32(bytes) {
+  let crc = 0xffffffff;
+  for (const byte of bytes) {
+    crc = ZIP_CRC_TABLE[(crc ^ byte) & 0xff] ^ (crc >>> 8);
+  }
+  return (crc ^ 0xffffffff) >>> 0;
+}
+
+function zipDateTime(timestamp) {
+  const date = new Date(timestamp || Date.now());
+  const year = Math.max(1980, date.getFullYear());
+  return {
+    time: (date.getHours() << 11) | (date.getMinutes() << 5) | Math.floor(date.getSeconds() / 2),
+    date: ((year - 1980) << 9) | ((date.getMonth() + 1) << 5) | date.getDate()
+  };
+}
+
+async function createFolderZip(folderName, files) {
+  const encoder = new TextEncoder();
+  const parts = [];
+  const centralParts = [];
+  let offset = 0;
+
+  for (const file of files) {
+    const nameBytes = encoder.encode(fileDisplayPath(file).replace(/\\/g, "/"));
+    const fileBytes = new Uint8Array(await file.arrayBuffer());
+    const checksum = zipCrc32(fileBytes);
+    const stamp = zipDateTime(file.lastModified);
+    const localHeader = new Uint8Array(30 + nameBytes.length);
+    const localView = new DataView(localHeader.buffer);
+    localView.setUint32(0, 0x04034b50, true);
+    localView.setUint16(4, 20, true);
+    localView.setUint16(6, 0x0800, true);
+    localView.setUint16(8, 0, true);
+    localView.setUint16(10, stamp.time, true);
+    localView.setUint16(12, stamp.date, true);
+    localView.setUint32(14, checksum, true);
+    localView.setUint32(18, fileBytes.length, true);
+    localView.setUint32(22, fileBytes.length, true);
+    localView.setUint16(26, nameBytes.length, true);
+    localView.setUint16(28, 0, true);
+    localHeader.set(nameBytes, 30);
+
+    parts.push(localHeader, fileBytes);
+
+    const centralHeader = new Uint8Array(46 + nameBytes.length);
+    const centralView = new DataView(centralHeader.buffer);
+    centralView.setUint32(0, 0x02014b50, true);
+    centralView.setUint16(4, 20, true);
+    centralView.setUint16(6, 20, true);
+    centralView.setUint16(8, 0x0800, true);
+    centralView.setUint16(10, 0, true);
+    centralView.setUint16(12, stamp.time, true);
+    centralView.setUint16(14, stamp.date, true);
+    centralView.setUint32(16, checksum, true);
+    centralView.setUint32(20, fileBytes.length, true);
+    centralView.setUint32(24, fileBytes.length, true);
+    centralView.setUint16(28, nameBytes.length, true);
+    centralView.setUint16(30, 0, true);
+    centralView.setUint16(32, 0, true);
+    centralView.setUint16(34, 0, true);
+    centralView.setUint16(36, 0, true);
+    centralView.setUint32(38, 0, true);
+    centralView.setUint32(42, offset, true);
+    centralHeader.set(nameBytes, 46);
+    centralParts.push(centralHeader);
+
+    offset += localHeader.length + fileBytes.length;
+  }
+
+  const centralOffset = offset;
+  const centralSize = centralParts.reduce((sum, part) => sum + part.length, 0);
+  const endRecord = new Uint8Array(22);
+  const endView = new DataView(endRecord.buffer);
+  endView.setUint32(0, 0x06054b50, true);
+  endView.setUint16(4, 0, true);
+  endView.setUint16(6, 0, true);
+  endView.setUint16(8, files.length, true);
+  endView.setUint16(10, files.length, true);
+  endView.setUint32(12, centralSize, true);
+  endView.setUint32(16, centralOffset, true);
+  endView.setUint16(20, 0, true);
+
+  return new File([...parts, ...centralParts, endRecord], `${folderName}.zip`, {
+    type: "application/zip",
+    lastModified: Date.now()
+  });
+}
+
+async function addFiles(fileList) {
+  const files = Array.from(fileList || []);
+  const folderGroups = new Map();
+  const plainFiles = [];
+
+  files.forEach((file) => {
+    const path = fileDisplayPath(file).replace(/\\/g, "/");
+    const parts = path.split("/");
+    if (parts.length > 1 && parts[0]) {
+      const folderName = parts[0];
+      if (!folderGroups.has(folderName)) {
+        folderGroups.set(folderName, []);
+      }
+      folderGroups.get(folderName).push(file);
+    } else {
+      plainFiles.push(file);
+    }
+  });
+
+  if (plainFiles.length) {
+    addFilesDirect(plainFiles);
+  }
+  for (const [folderName, folderFiles] of folderGroups) {
+    try {
+      showToast("正在打包文件夹", `${folderName} · ${folderFiles.length} 个文件`);
+      const archive = await createFolderZip(folderName, folderFiles);
+      addFilesDirect([archive]);
+    } catch (error) {
+      showToast("文件夹打包失败", `${folderName}：${error.message || "内存不足"}`, "error");
+    }
+  }
+}
+
+function addFilesDirect(fileList) {
   const files = Array.from(fileList || []);
   if (!files.length) {
     return;
