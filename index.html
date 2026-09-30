@@ -10,7 +10,7 @@
   <link rel="preconnect" href="https://vdihfdrylanbfyrhvnnl.supabase.co" crossorigin>
   <link rel="dns-prefetch" href="https://vdihfdrylanbfyrhvnnl.supabase.co">
   <link rel="preload" as="image" href="assets/qingque-bg.jpg" fetchpriority="high">
-  <link rel="stylesheet" href="styles.css?v=qingque-jade-34">
+  <link rel="stylesheet" href="styles.css?v=qingque-jade-35">
 </head>
 <body>
   <div class="app-shell">
@@ -56,7 +56,6 @@
 
           <div class="drop-zone" id="dropZone" tabindex="0" role="button" aria-label="选择要上传的资源">
             <input id="fileInput" class="file-input-visually-hidden" type="file" multiple>
-            <input id="folderInput" class="file-input-visually-hidden" type="file" webkitdirectory directory multiple>
             <span class="drop-zone__icon" data-icon="cloud-upload"></span>
             <div class="drop-zone__copy">
               <strong>拖放文件到这里</strong>
@@ -67,10 +66,11 @@
                 <span data-icon="folder-open"></span>
                 <span>选择文件</span>
               </button>
-              <button class="button button-secondary" id="chooseFolderButton" type="button">
+              <label class="button button-secondary folder-picker-button" id="chooseFolderButton">
+                <input class="folder-picker-input" id="folderInput" type="file" webkitdirectory directory multiple>
                 <span data-icon="folder-tree"></span>
                 <span>选择文件夹</span>
-              </button>
+              </label>
               <button class="button button-secondary clipboard-button" id="clipboardButton" type="button">
                 <span data-icon="clipboard-paste"></span>
                 <span>从剪贴板添加</span>
@@ -306,6 +306,6 @@
 
   <div class="toast-region" id="toastRegion" aria-live="polite" aria-atomic="true"></div>
 
-  <script src="app-shared.js?v=qingque-jade-34" defer></script>
+  <script src="app-shared.js?v=qingque-jade-35" defer></script>
 </body>
 </html>
