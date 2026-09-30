@@ -350,44 +350,6 @@ async function filesFromDataTransfer(dataTransfer) {
   return files;
 }
 
-async function filesFromDirectoryHandle(directoryHandle, parentPath = "") {
-  const files = [];
-  for await (const [name, handle] of directoryHandle.entries()) {
-    const currentPath = parentPath ? `${parentPath}/${name}` : name;
-    if (handle.kind === "file") {
-      const file = await handle.getFile();
-      Object.defineProperty(file, "relativePath", {
-        value: currentPath,
-        enumerable: true,
-        configurable: true
-      });
-      files.push(file);
-    } else if (handle.kind === "directory") {
-      files.push(...await filesFromDirectoryHandle(handle, currentPath));
-    }
-  }
-  return files;
-}
-
-async function chooseFolder() {
-  if (typeof window.showDirectoryPicker === "function") {
-    try {
-      showToast("正在读取文件夹", "文件夹会递归读取所有子目录");
-      const directoryHandle = await window.showDirectoryPicker({ mode: "read" });
-      const files = await filesFromDirectoryHandle(directoryHandle);
-      addFiles(files);
-      return;
-    } catch (error) {
-      if (error && error.name === "AbortError") {
-        return;
-      }
-      showToast("无法读取文件夹", error.message || "请改用拖放文件夹", "error");
-      return;
-    }
-  }
-  elements.folderInput.click();
-}
-
 function typeLabel(kind) {
   return TYPE_META[kind]?.label || TYPE_META.other.label;
 }
@@ -2125,7 +2087,6 @@ function bindEvents() {
   elements.chooseFolderButton.hidden = false;
   elements.chooseFolderButton.addEventListener("click", (event) => {
     event.stopPropagation();
-    chooseFolder();
   });
   elements.clipboardButton.addEventListener("click", (event) => {
     event.stopPropagation();
