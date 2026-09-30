@@ -286,7 +286,68 @@ function getKind(file) {
 }
 
 function fileDisplayPath(file) {
-  return file.webkitRelativePath || file.name;
+  return file.relativePath || file.webkitRelativePath || file.name;
+}
+
+function readDirectoryEntries(directoryEntry) {
+  return new Promise((resolve, reject) => {
+    const reader = directoryEntry.createReader();
+    const entries = [];
+    const readBatch = () => {
+      reader.readEntries((batch) => {
+        if (!batch.length) {
+          resolve(entries);
+          return;
+        }
+        entries.push(...batch);
+        readBatch();
+      }, reject);
+    };
+    readBatch();
+  });
+}
+
+async function traverseFileEntry(entry, parentPath = "") {
+  const currentPath = parentPath ? `${parentPath}/${entry.name}` : entry.name;
+  if (entry.isFile) {
+    const file = await new Promise((resolve, reject) => entry.file(resolve, reject));
+    Object.defineProperty(file, "relativePath", {
+      value: currentPath,
+      enumerable: true,
+      configurable: true
+    });
+    return [file];
+  }
+  if (entry.isDirectory) {
+    const entries = await readDirectoryEntries(entry);
+    const files = [];
+    for (const child of entries) {
+      files.push(...await traverseFileEntry(child, currentPath));
+    }
+    return files;
+  }
+  return [];
+}
+
+async function filesFromDataTransfer(dataTransfer) {
+  const entries = [];
+  for (const item of [...(dataTransfer.items || [])]) {
+    if (item.kind !== "file" || typeof item.webkitGetAsEntry !== "function") {
+      continue;
+    }
+    const entry = item.webkitGetAsEntry();
+    if (entry) {
+      entries.push(entry);
+    }
+  }
+  if (!entries.length) {
+    return [...(dataTransfer.files || [])];
+  }
+  const files = [];
+  for (const entry of entries) {
+    files.push(...await traverseFileEntry(entry));
+  }
+  return files;
 }
 
 function typeLabel(kind) {
@@ -2019,7 +2080,11 @@ function bindEvents() {
     event.stopPropagation();
     elements.fileInput.click();
   });
-  const folderSupported = "webkitdirectory" in elements.folderInput || "directory" in elements.folderInput;
+  elements.folderInput.setAttribute("webkitdirectory", "");
+  elements.folderInput.setAttribute("directory", "");
+  const folderSupported = "webkitdirectory" in elements.folderInput
+    || "webkitdirectory" in HTMLInputElement.prototype
+    || "webkitGetAsEntry" in DataTransferItem.prototype;
   elements.chooseFolderButton.hidden = !folderSupported;
   elements.chooseFolderButton.addEventListener("click", (event) => {
     event.stopPropagation();
@@ -2043,10 +2108,16 @@ function bindEvents() {
   elements.dropZone.addEventListener("dragleave", () => {
     elements.dropZone.classList.remove("is-dragging");
   });
-  elements.dropZone.addEventListener("drop", (event) => {
+  elements.dropZone.addEventListener("drop", async (event) => {
     event.preventDefault();
     elements.dropZone.classList.remove("is-dragging");
-    addFiles(event.dataTransfer.files);
+    try {
+      showToast("正在读取拖入内容", "文件夹会递归读取所有子目录");
+      const files = await filesFromDataTransfer(event.dataTransfer);
+      addFiles(files);
+    } catch (error) {
+      showToast("读取文件夹失败", error.message || "请改用“选择文件夹”按钮", "error");
+    }
   });
   elements.fileInput.addEventListener("change", () => {
     addFiles(elements.fileInput.files);
