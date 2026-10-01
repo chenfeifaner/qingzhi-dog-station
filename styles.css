@@ -333,22 +333,6 @@ select:focus-visible,
   display: none;
 }
 
-.folder-picker-button {
-  position: relative;
-  overflow: hidden;
-  cursor: pointer;
-}
-
-.folder-picker-input {
-  position: absolute;
-  inset: 0;
-  z-index: 2;
-  width: 100%;
-  height: 100%;
-  opacity: 0;
-  cursor: pointer;
-}
-
 .button svg {
   width: 17px;
   height: 17px;
@@ -486,6 +470,70 @@ select:focus-visible,
 
 .drop-zone__actions .button {
   flex: 1;
+}
+
+.upload-picker {
+  position: relative;
+  flex: 1;
+}
+
+.upload-picker__button {
+  width: 100%;
+}
+
+.upload-picker__menu {
+  position: absolute;
+  left: 0;
+  bottom: calc(100% + 8px);
+  z-index: 40;
+  display: grid;
+  width: max-content;
+  min-width: 100%;
+  overflow: hidden;
+  border: 1px solid rgba(87, 105, 115, 0.24);
+  border-radius: 7px;
+  background: rgba(250, 253, 252, 0.96);
+  box-shadow: 0 16px 36px rgba(4, 31, 26, 0.2);
+  backdrop-filter: blur(18px);
+}
+
+.upload-picker__menu[hidden] {
+  display: none;
+}
+
+.upload-picker__menu button,
+.upload-picker__menu label {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-height: 42px;
+  padding: 0 13px;
+  border: 0;
+  border-bottom: 1px solid rgba(23, 33, 43, 0.08);
+  background: transparent;
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 700;
+  text-align: left;
+  cursor: pointer;
+}
+
+.upload-picker__menu button:last-child,
+.upload-picker__menu label:last-child {
+  border-bottom: 0;
+}
+
+.upload-picker__menu button:hover,
+.upload-picker__menu label:hover {
+  background: rgba(31, 138, 112, 0.1);
+}
+
+.upload-picker__menu input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
 }
 
 .upload-options {
