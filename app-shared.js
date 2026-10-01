@@ -654,8 +654,8 @@ function buildSupabasePageUrl() {
 
   const search = state.search.trim();
   if (search) {
-    const escaped = search.replace(/[(),]/g, " ").slice(0, 80);
-    params.set("or", `(name.ilike.*${escaped}*,description.ilike.*${escaped}*)`);
+    const escaped = search.replace(/[(),{}]/g, " ").slice(0, 80);
+    params.set("or", `(name.ilike.*${escaped}*,description.ilike.*${escaped}*,tags.cs.{${escaped}})`);
   }
   return `${SUPABASE_URL}/rest/v1/${SUPABASE_TABLE}?${params.toString()}`;
 }
