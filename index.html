@@ -10,7 +10,7 @@
   <link rel="preconnect" href="https://vdihfdrylanbfyrhvnnl.supabase.co" crossorigin>
   <link rel="dns-prefetch" href="https://vdihfdrylanbfyrhvnnl.supabase.co">
   <link rel="preload" as="image" href="assets/qingque-bg.jpg" fetchpriority="high">
-  <link rel="stylesheet" href="styles.css?v=qingque-jade-36">
+  <link rel="stylesheet" href="styles.css?v=qingque-jade-37">
 </head>
 <body>
   <div class="app-shell">
@@ -62,15 +62,23 @@
               <span>或点击选择文件，支持一次添加多个资源</span>
             </div>
             <div class="drop-zone__actions">
-              <button class="button button-primary" id="chooseFilesButton" type="button">
-                <span data-icon="folder-open"></span>
-                <span>选择文件</span>
-              </button>
-              <label class="button button-secondary folder-picker-button" id="chooseFolderButton">
-                <input class="folder-picker-input" id="folderInput" type="file" webkitdirectory directory multiple>
-                <span data-icon="folder-tree"></span>
-                <span>选择文件夹</span>
-              </label>
+              <div class="upload-picker">
+                <button class="button button-primary upload-picker__button" id="uploadPickerButton" type="button" aria-expanded="false">
+                  <span data-icon="folder-open"></span>
+                  <span>选择文件 / 文件夹</span>
+                </button>
+                <div class="upload-picker__menu" id="uploadPickerMenu" hidden>
+                  <button type="button" id="chooseFilesMenuItem">
+                    <span data-icon="file"></span>
+                    <span>选择文件</span>
+                  </button>
+                  <label id="chooseFolderMenuItem">
+                    <input id="folderInput" type="file" webkitdirectory directory multiple>
+                    <span data-icon="folder-tree"></span>
+                    <span>选择文件夹</span>
+                  </label>
+                </div>
+              </div>
               <button class="button button-secondary clipboard-button" id="clipboardButton" type="button">
                 <span data-icon="clipboard-paste"></span>
                 <span>从剪贴板添加</span>
@@ -306,6 +314,6 @@
 
   <div class="toast-region" id="toastRegion" aria-live="polite" aria-atomic="true"></div>
 
-  <script src="app-shared.js?v=qingque-jade-36" defer></script>
+  <script src="app-shared.js?v=qingque-jade-37" defer></script>
 </body>
 </html>
