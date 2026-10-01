@@ -133,10 +133,8 @@ const elements = {
   dropZone: document.getElementById("dropZone"),
   fileInput: document.getElementById("fileInput"),
   folderInput: document.getElementById("folderInput"),
-  uploadPickerButton: document.getElementById("uploadPickerButton"),
-  uploadPickerMenu: document.getElementById("uploadPickerMenu"),
-  chooseFilesMenuItem: document.getElementById("chooseFilesMenuItem"),
-  chooseFolderMenuItem: document.getElementById("chooseFolderMenuItem"),
+  chooseFilesButton: document.getElementById("chooseFilesButton"),
+  chooseFolderButton: document.getElementById("chooseFolderButton"),
   clipboardButton: document.getElementById("clipboardButton"),
   resourceNameInput: document.getElementById("resourceNameInput"),
   tagsInput: document.getElementById("tagsInput"),
@@ -2214,24 +2212,12 @@ function bindEvents() {
   elements.folderInput.setAttribute("directory", "");
   elements.folderInput.webkitdirectory = true;
   elements.folderInput.multiple = true;
-  elements.uploadPickerButton.addEventListener("click", (event) => {
+  elements.chooseFilesButton.addEventListener("click", (event) => {
     event.stopPropagation();
-    const open = elements.uploadPickerMenu.hidden;
-    elements.uploadPickerMenu.hidden = !open;
-    elements.uploadPickerButton.setAttribute("aria-expanded", String(open));
-  });
-  elements.uploadPickerMenu.addEventListener("click", (event) => {
-    event.stopPropagation();
-  });
-  elements.chooseFilesMenuItem.addEventListener("click", () => {
-    elements.uploadPickerMenu.hidden = true;
-    elements.uploadPickerButton.setAttribute("aria-expanded", "false");
     elements.fileInput.click();
   });
-  elements.chooseFolderMenuItem.addEventListener("click", (event) => {
+  elements.chooseFolderButton.addEventListener("click", (event) => {
     event.stopPropagation();
-    elements.uploadPickerMenu.hidden = true;
-    elements.uploadPickerButton.setAttribute("aria-expanded", "false");
   });
   elements.clipboardButton.addEventListener("click", (event) => {
     event.stopPropagation();
@@ -2269,10 +2255,6 @@ function bindEvents() {
   elements.folderInput.addEventListener("change", () => {
     addFiles(elements.folderInput.files);
     elements.folderInput.value = "";
-  });
-  document.addEventListener("click", () => {
-    elements.uploadPickerMenu.hidden = true;
-    elements.uploadPickerButton.setAttribute("aria-expanded", "false");
   });
 
   elements.queueList.addEventListener("click", (event) => {
@@ -2400,8 +2382,6 @@ function bindEvents() {
     if (event.key !== "Escape") {
       return;
     }
-    elements.uploadPickerMenu.hidden = true;
-    elements.uploadPickerButton.setAttribute("aria-expanded", "false");
     if (elements.confirmModal.classList.contains("is-open")) {
       closeDeleteConfirm();
     } else if (elements.adminModal.classList.contains("is-open")) {
