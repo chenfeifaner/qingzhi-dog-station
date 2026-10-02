@@ -97,8 +97,18 @@ function getResourceOwnerToken(resource) {
   return category.startsWith("private:") ? category.slice("private:".length) : "";
 }
 
-function getUploadCategory() {
-  return state.mode === "local" ? "public" : `private:${getOwnerToken()}`;
+function defaultUploadVisibility() {
+  return state.mode === "local" ? "public" : "private";
+}
+
+function syncVisibilityDefault() {
+  if (elements.visibilitySelect) {
+    elements.visibilitySelect.value = defaultUploadVisibility();
+  }
+}
+
+function getUploadCategory(visibility) {
+  return visibility === "private" ? `private:${getOwnerToken()}` : "public";
 }
 
 function canViewResource(resource) {
@@ -177,6 +187,7 @@ const elements = {
   chooseFolderButton: document.getElementById("chooseFolderButton"),
   clipboardButton: document.getElementById("clipboardButton"),
   resourceNameInput: document.getElementById("resourceNameInput"),
+  visibilitySelect: document.getElementById("visibilitySelect"),
   tagsInput: document.getElementById("tagsInput"),
   descriptionInput: document.getElementById("descriptionInput"),
   queue: document.getElementById("queue"),
@@ -491,6 +502,7 @@ function submitAdmin(event) {
 
 function setStorageMode(mode) {
   state.mode = mode;
+  syncVisibilityDefault();
   updateStorageBadge(mode);
 }
 
@@ -512,17 +524,17 @@ function updateStorageBadge(mode) {
   };
 
   if (mode === "server") {
-    setBadge("is-online", "在线 · 私密", "online");
+    setBadge("is-online", "在线", "online");
     return;
   }
 
   if (mode === "supabase") {
-    setBadge("is-online", "在线 · 私密", "online");
+    setBadge("is-online", "在线", "online");
     return;
   }
 
   if (mode === "local") {
-    setBadge("is-offline", "离线 · 公开", "offline");
+    setBadge("is-offline", "离线", "offline");
     return;
   }
 
@@ -570,6 +582,7 @@ async function switchStorageMode(targetMode) {
   if (targetMode === "offline") {
     state.mode = "local";
     state.cloudOffline = false;
+    syncVisibilityDefault();
     updateStorageBadge("local");
     state.selectedIds.clear();
     state.page = 1;
@@ -588,6 +601,7 @@ async function switchStorageMode(targetMode) {
   state.page = 1;
   state.mode = "supabase";
   state.cloudOffline = false;
+  syncVisibilityDefault();
   updateStorageBadge("supabase");
   await loadSupabasePage();
   if (state.cloudOffline) {
@@ -1513,7 +1527,7 @@ function uploadMetadata(file, index = 0, total = 1) {
   return {
     fileName: file.name,
     name,
-    category: getUploadCategory(),
+    category: getUploadCategory(elements.visibilitySelect.value),
     tags: elements.tagsInput.value.split(/[,，]/).map((tag) => tag.trim()).filter(Boolean).slice(0, 8),
     description: elements.descriptionInput.value.trim()
   };
@@ -1901,13 +1915,14 @@ async function startUpload() {
 
   if (successCount && !failedCount) {
     elements.resourceNameInput.value = "";
+    const visibilityText = elements.visibilitySelect.value === "private" ? "私密" : "公开";
     elements.tagsInput.value = "";
     elements.descriptionInput.value = "";
     showToast(
       "全部上传完成",
       state.mode === "local"
-        ? `${successCount} 个公开资源已保存，切换到在线后自动同步`
-        : `${successCount} 个私密资源已上传`
+        ? `${successCount} 个${visibilityText}资源已保存，切换到在线后自动同步`
+        : `${successCount} 个${visibilityText}资源已上传`
     );
   } else if (successCount && failedCount) {
     showToast("上传部分完成", `${successCount} 个成功，${failedCount} 个失败`, "error");
