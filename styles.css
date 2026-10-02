@@ -257,15 +257,27 @@ select:focus-visible,
   transform: translateY(-1px);
 }
 
-.mode-badge [data-icon] {
-  width: 14px;
-  height: 14px;
-  color: var(--muted);
+.mode-select {
+  min-width: 58px;
+  padding: 0 16px 0 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-weight: 700;
+  text-align: left;
+  cursor: pointer;
 }
 
-.mode-badge [data-icon] svg {
-  width: 14px;
-  height: 14px;
+.mode-select:disabled {
+  color: inherit;
+  opacity: 1;
+}
+
+.mode-select option {
+  color: var(--ink);
+  background: #ffffff;
 }
 
 .panel {
