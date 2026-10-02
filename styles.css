@@ -1356,7 +1356,7 @@ select:focus-visible,
 
 .audio-playlist__item {
   display: grid;
-  grid-template-columns: 28px minmax(0, 1fr);
+  grid-template-columns: 28px 34px minmax(0, 1fr);
   align-items: center;
   gap: 8px;
   min-height: 40px;
@@ -1368,10 +1368,27 @@ select:focus-visible,
   text-align: left;
 }
 
-.audio-playlist__item span {
+.audio-playlist__index {
   color: var(--muted);
   font-size: 11px;
   text-align: center;
+}
+
+.audio-playlist__cover {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  overflow: hidden;
+  border-radius: 5px;
+  background: var(--green-soft);
+  color: var(--green);
+}
+
+.audio-playlist__cover img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 .audio-playlist__item strong {
