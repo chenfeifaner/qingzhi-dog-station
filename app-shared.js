@@ -1016,7 +1016,7 @@ function renderResources() {
 
   elements.resourceList.innerHTML = resources.map((resource) => {
     const tags = resource.tags.length ? ` · ${resource.tags.slice(0, 2).join(" / ")}` : "";
-    const playable = ["image", "video", "audio"].includes(resource.kind);
+    const playable = true;
     const selection = state.isAdmin
       ? `<label class="resource-select" aria-label="选择 ${escapeHTML(resource.name)}">
           <input type="checkbox" data-select-resource="${escapeHTML(resource.id)}" ${state.selectedIds.has(resource.id) ? "checked" : ""}>
@@ -1899,11 +1899,15 @@ function openPreview(id) {
   } else if (isPdf(resource) && url) {
     preview = `<iframe src="${escapeHTML(url)}" title="${escapeHTML(resource.name)}"></iframe>`;
   } else {
+    const summary = resource.description
+      || (resource.kind === "archive"
+        ? "压缩包无法直接在网页中打开，可查看文件简介或下载后使用。"
+        : "此格式暂不支持页面内预览，可查看文件简介或下载后打开。");
     preview = `
       <div class="preview-placeholder">
         <span data-icon="${escapeHTML(typeIcon(resource.kind))}"></span>
-        <strong>${escapeHTML(typeLabel(resource.kind))}文件</strong>
-        <span>此格式暂不支持页面内预览，可下载后打开。</span>
+        <strong>${escapeHTML(resource.name)}</strong>
+        <span>${escapeHTML(summary)}</span>
       </div>
     `;
   }
@@ -1916,7 +1920,7 @@ function openPreview(id) {
     <div class="preview-meta__item"><span>标签</span><strong title="${escapeHTML(tags)}">${escapeHTML(tags)}</strong></div>
     <div class="preview-meta__item"><span>上传时间</span><strong>${escapeHTML(formatDate(resource.uploadedAt))}</strong></div>
     <div class="preview-meta__item"><span>文件类型</span><strong>${escapeHTML(typeLabel(resource.kind))}</strong></div>
-    <div class="preview-meta__item"><span>备注</span><strong title="${escapeHTML(resource.description || "无")}">${escapeHTML(resource.description || "无")}</strong></div>
+    <div class="preview-meta__item"><span>简介</span><strong title="${escapeHTML(resource.description || "无")}">${escapeHTML(resource.description || "无")}</strong></div>
   `;
   hydrateIcons(elements.previewArea);
   elements.copyLinkButton.hidden = !["server", "supabase"].includes(state.mode) || !resource.url;
