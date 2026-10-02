@@ -243,9 +243,29 @@ select:focus-visible,
   border-radius: 6px;
   background: rgba(255, 255, 255, 0.62);
   color: var(--ink-soft);
+  font: inherit;
   font-size: 12px;
   font-weight: 700;
+  text-align: left;
   white-space: nowrap;
+  transition: border-color 160ms ease, background 160ms ease, transform 160ms ease;
+}
+
+.mode-badge:hover {
+  border-color: rgba(31, 138, 112, 0.42);
+  background: rgba(255, 255, 255, 0.82);
+  transform: translateY(-1px);
+}
+
+.mode-badge [data-icon] {
+  width: 14px;
+  height: 14px;
+  color: var(--muted);
+}
+
+.mode-badge [data-icon] svg {
+  width: 14px;
+  height: 14px;
 }
 
 .panel {
