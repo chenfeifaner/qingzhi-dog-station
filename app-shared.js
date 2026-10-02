@@ -2736,6 +2736,9 @@ async function openPreview(id) {
       progressToast.fail("音乐列表读取失败", "已改用当前列表");
     }
   }
+  if (resource.kind === "audio") {
+    document.querySelectorAll(".audio-player.is-docked").forEach((player) => player.remove());
+  }
 
   if (resource.kind === "folder") {
     preview = `
@@ -2836,16 +2839,20 @@ async function openPreview(id) {
 }
 
 function closePreview() {
-  const media = elements.previewArea.querySelector("video, audio");
-  if (media) {
-    media.pause();
+  const audioPlayer = elements.previewArea.querySelector("[data-audio-player]");
+  if (audioPlayer) {
+    document.querySelectorAll(".audio-player.is-docked").forEach((player) => player.remove());
+    document.body.appendChild(audioPlayer);
+    audioPlayer.classList.add("is-docked");
+  }
+  const video = elements.previewArea.querySelector("video");
+  if (video) {
+    video.pause();
   }
   elements.previewArea.innerHTML = "";
   elements.previewModal.classList.remove("is-open");
   elements.previewModal.setAttribute("aria-hidden", "true");
   state.previewId = "";
-  state.audioPlaylist = [];
-  state.audioIndex = -1;
   if (state.previewObjectUrl) {
     URL.revokeObjectURL(state.previewObjectUrl);
     state.previewObjectUrl = "";
