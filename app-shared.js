@@ -19,7 +19,11 @@ const ICONS = {
   "pencil": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"/><path d="m15 5 4 4"/></svg>',
   "plus": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg>',
   "search": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>',
+  "repeat": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="m17 2 4 4-4 4"/><path d="M3 11v-1a4 4 0 0 1 4-4h14"/><path d="m7 22-4-4 4-4"/><path d="M21 13v1a4 4 0 0 1-4 4H3"/></svg>',
+  "shuffle": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="m18 14 4 4-4 4"/><path d="m18 2 4 4-4 4"/><path d="M2 18h1.973a4 4 0 0 0 3.3-1.7l5.454-8.6a4 4 0 0 1 3.3-1.7H22"/><path d="M2 6h1.972a4 4 0 0 1 3.6 2.2"/><path d="M22 18h-6.041a4 4 0 0 1-3.3-1.8l-.359-.45"/></svg>',
   "shield": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M20 13c0 5-3.5 7.5-8 9-4.5-1.5-8-4-8-9V5l8-3 8 3Z"/><path d="M12 8v4"/><path d="M12 16h.01"/></svg>',
+  "skip-back": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M19 20 9 12l10-8v16Z"/><path d="M5 19V5"/></svg>',
+  "skip-forward": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="m5 4 10 8-10 8V4Z"/><path d="M19 5v14"/></svg>',
   "trash-2": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg>',
   "upload": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="m17 8-5-5-5 5"/><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/></svg>',
   "x": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>'
@@ -125,6 +129,9 @@ const state = {
   pendingDeleteIds: [],
   previewId: "",
   previewObjectUrl: "",
+  audioPlaylist: [],
+  audioIndex: -1,
+  audioMode: "sequence",
   objectUrls: new Map(),
   videoThumbs: new Map(),
   db: null
@@ -2173,6 +2180,142 @@ function findResource(id) {
   return state.resources.find((resource) => resource.id === id);
 }
 
+function getAudioPlaylist(resource) {
+  const playlist = state.resources.filter((entry) => (
+    entry.kind === "audio"
+    && !entry.chunked
+    && getObjectUrl(entry)
+  ));
+  if (!playlist.some((entry) => entry.id === resource.id)) {
+    playlist.unshift(resource);
+  }
+  return playlist;
+}
+
+function renderAudioPlayer(resource) {
+  const playlist = getAudioPlaylist(resource);
+  state.audioPlaylist = playlist;
+  state.audioIndex = Math.max(0, playlist.findIndex((entry) => entry.id === resource.id));
+  const modeLabel = state.audioMode === "shuffle" ? "随机播放" : "顺序播放";
+  const modeIcon = state.audioMode === "shuffle" ? "shuffle" : "repeat";
+  return `
+    <div class="audio-player" data-audio-player>
+      <div class="audio-cover" aria-hidden="true">
+        <span data-icon="music"></span>
+      </div>
+      <strong class="audio-player__title">${escapeHTML(resource.name)}</strong>
+      <audio data-audio-element controls preload="metadata" src="${escapeHTML(getObjectUrl(resource))}"></audio>
+      <div class="audio-player__controls">
+        <button class="icon-button" type="button" data-audio-prev aria-label="上一首" title="上一首">
+          <span data-icon="skip-back"></span>
+        </button>
+        <button class="button button-secondary" type="button" data-audio-mode aria-label="${modeLabel}" title="${modeLabel}">
+          <span data-icon="${modeIcon}"></span>
+          <span>${modeLabel}</span>
+        </button>
+        <button class="icon-button" type="button" data-audio-next aria-label="下一首" title="下一首">
+          <span data-icon="skip-forward"></span>
+        </button>
+      </div>
+      <div class="audio-playlist" aria-label="播放列表">
+        ${playlist.map((entry, index) => `
+          <button class="audio-playlist__item ${index === state.audioIndex ? "is-active" : ""}" type="button" data-audio-track="${index}">
+            <span>${index + 1}</span>
+            <strong>${escapeHTML(entry.name)}</strong>
+          </button>
+        `).join("")}
+      </div>
+    </div>
+  `;
+}
+
+function setupAudioPlayer() {
+  const player = elements.previewArea.querySelector("[data-audio-player]");
+  const audio = elements.previewArea.querySelector("[data-audio-element]");
+  if (!player || !audio || !state.audioPlaylist.length) {
+    return;
+  }
+
+  const title = player.querySelector(".audio-player__title");
+  const modeButton = player.querySelector("[data-audio-mode]");
+  const trackButtons = [...player.querySelectorAll("[data-audio-track]")];
+
+  const updateTrackUI = () => {
+    const current = state.audioPlaylist[state.audioIndex];
+    if (!current) {
+      return;
+    }
+    title.textContent = current.name;
+    trackButtons.forEach((button) => {
+      button.classList.toggle("is-active", Number(button.dataset.audioTrack) === state.audioIndex);
+    });
+  };
+
+  const getNextIndex = (step) => {
+    const length = state.audioPlaylist.length;
+    if (length < 2) {
+      return state.audioIndex;
+    }
+    if (state.audioMode === "shuffle" && step > 0) {
+      let next = state.audioIndex;
+      while (next === state.audioIndex) {
+        next = Math.floor(Math.random() * length);
+      }
+      return next;
+    }
+    return (state.audioIndex + step + length) % length;
+  };
+
+  const playIndex = async (index) => {
+    const nextIndex = Math.max(0, Math.min(index, state.audioPlaylist.length - 1));
+    const nextResource = state.audioPlaylist[nextIndex];
+    const nextUrl = getObjectUrl(nextResource);
+    if (!nextUrl) {
+      return;
+    }
+    state.audioIndex = nextIndex;
+    audio.src = nextUrl;
+    audio.load();
+    updateTrackUI();
+    try {
+      await audio.play();
+    } catch (error) {
+      // Browser autoplay policies may require another click.
+    }
+  };
+
+  const updateModeButton = () => {
+    const shuffle = state.audioMode === "shuffle";
+    modeButton.querySelector("span:last-child").textContent = shuffle ? "随机播放" : "顺序播放";
+    modeButton.setAttribute("aria-label", shuffle ? "随机播放" : "顺序播放");
+    modeButton.setAttribute("title", shuffle ? "随机播放" : "顺序播放");
+    const icon = modeButton.querySelector("[data-icon]");
+    icon.dataset.icon = shuffle ? "shuffle" : "repeat";
+    icon.dataset.iconReady = "false";
+    hydrateIcons(modeButton);
+  };
+
+  audio.addEventListener("play", () => player.classList.add("is-playing"));
+  audio.addEventListener("pause", () => player.classList.remove("is-playing"));
+  audio.addEventListener("ended", () => playIndex(getNextIndex(1)));
+  player.querySelector("[data-audio-prev]").addEventListener("click", () => {
+    playIndex(getNextIndex(-1));
+  });
+  player.querySelector("[data-audio-next]").addEventListener("click", () => {
+    playIndex(getNextIndex(1));
+  });
+  modeButton.addEventListener("click", () => {
+    state.audioMode = state.audioMode === "shuffle" ? "sequence" : "shuffle";
+    updateModeButton();
+  });
+  trackButtons.forEach((button) => {
+    button.addEventListener("click", () => {
+      playIndex(Number(button.dataset.audioTrack) || 0);
+    });
+  });
+  updateTrackUI();
+}
+
 async function openPreview(id) {
   let resource = findResource(id);
   if (!resource) {
@@ -2249,7 +2392,7 @@ async function openPreview(id) {
   } else if (resource.kind === "video" && url) {
     preview = `<video src="${escapeHTML(url)}" controls autoplay playsinline preload="metadata"></video>`;
   } else if (resource.kind === "audio" && url) {
-    preview = `<audio src="${escapeHTML(url)}" controls autoplay preload="metadata"></audio>`;
+    preview = renderAudioPlayer(resource);
   } else if (isPdf(resource) && url) {
     preview = `<iframe src="${escapeHTML(url)}" title="${escapeHTML(resource.name)}"></iframe>`;
   } else if (["document", "code"].includes(resource.kind) && url) {
@@ -2293,6 +2436,9 @@ async function openPreview(id) {
   if (loadTextDocument) {
     loadTextDocumentPreview(resource);
   }
+  if (resource.kind === "audio") {
+    setupAudioPlayer();
+  }
   const tags = resource.tags.length ? resource.tags.join("、") : "无标签";
   elements.previewMeta.innerHTML = `
     <div class="preview-meta__item"><span>文件大小</span><strong>${escapeHTML(formatBytes(resource.size))}</strong></div>
@@ -2324,6 +2470,8 @@ function closePreview() {
   elements.previewModal.classList.remove("is-open");
   elements.previewModal.setAttribute("aria-hidden", "true");
   state.previewId = "";
+  state.audioPlaylist = [];
+  state.audioIndex = -1;
   if (state.previewObjectUrl) {
     URL.revokeObjectURL(state.previewObjectUrl);
     state.previewObjectUrl = "";
