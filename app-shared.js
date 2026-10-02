@@ -32,6 +32,7 @@ const TYPE_META = {
   document: { label: "文档", icon: "file" },
   archive: { label: "压缩包", icon: "archive" },
   code: { label: "代码", icon: "code" },
+  folder: { label: "文件夹", icon: "folder-tree" },
   model: { label: "3D 模型", icon: "package-open" },
   other: { label: "其他", icon: "file" }
 };
@@ -256,6 +257,9 @@ function formatDate(value, includeTime = true) {
 }
 
 function getKind(file) {
+  if (file?.resourceKind) {
+    return file.resourceKind;
+  }
   const name = String(file.name || "").toLowerCase();
   const type = String(file.type || "").toLowerCase();
   const extension = name.includes(".") ? name.split(".").pop() : "";
@@ -364,6 +368,69 @@ function isImage(resource) {
 function isPdf(resource) {
   const name = String(resource.name || "").toLowerCase();
   return resource.mime === "application/pdf" || name.endsWith(".pdf");
+}
+
+function getDocumentPreviewType(resource) {
+  const name = String(resource.name || "").toLowerCase();
+  const mime = String(resource.mime || "").toLowerCase();
+  const extension = name.includes(".") ? name.split(".").pop() : "";
+  if (isPdf(resource)) {
+    return "pdf";
+  }
+  if (
+    ["doc", "docx", "xls", "xlsx", "ppt", "pptx"].includes(extension)
+    || mime.includes("wordprocessingml")
+    || mime.includes("spreadsheetml")
+    || mime.includes("presentationml")
+  ) {
+    return "office";
+  }
+  if (
+    ["txt", "md", "csv", "json", "xml", "yaml", "yml", "log", "ini", "tsv"].includes(extension)
+    || mime.startsWith("text/")
+    || mime.includes("json")
+    || mime.includes("xml")
+  ) {
+    return "text";
+  }
+  return "";
+}
+
+async function loadTextDocumentPreview(resource) {
+  const target = elements.previewArea.querySelector("[data-document-preview]");
+  if (!target) {
+    return;
+  }
+  const url = getObjectUrl(resource);
+  if (!url) {
+    target.textContent = "无法读取文档内容。";
+    return;
+  }
+  try {
+    const response = await fetchWithTimeout(url, { cache: "no-store" }, 120000);
+    if (!response.ok && response.status !== 0) {
+      throw new Error("文档读取失败");
+    }
+    let text = await response.text();
+    if (String(resource.name || "").toLowerCase().endsWith(".json")) {
+      try {
+        text = JSON.stringify(JSON.parse(text), null, 2);
+      } catch (error) {
+        // Keep the original text if JSON parsing fails.
+      }
+    }
+    if (!elements.previewArea.contains(target)) {
+      return;
+    }
+    const maxCharacters = 1500000;
+    target.textContent = text.length > maxCharacters
+      ? `${text.slice(0, maxCharacters)}\n\n…内容过长，已截断显示`
+      : text;
+  } catch (error) {
+    if (elements.previewArea.contains(target)) {
+      target.textContent = error.message || "文档读取失败";
+    }
+  }
 }
 
 function getObjectUrl(resource) {
@@ -685,7 +752,7 @@ function buildSupabasePageUrl() {
 
   if (state.filter !== "all") {
     if (state.filter === "other") {
-      params.set("kind", "in.(model,code,other)");
+      params.set("kind", "in.(folder,model,code,other)");
     } else {
       params.set("kind", `eq.${state.filter}`);
     }
@@ -891,7 +958,10 @@ function normalizeResource(resource) {
       : [];
   const filePath = resource.filePath || resource.file_path || "";
   const manifest = parseChunkManifest(filePath);
-  const compressed = resource.compressed === true || filePath.endsWith(".qzg") || Boolean(manifest?.compressed);
+  const compressed = resource.compressed === true
+    || filePath.startsWith("compressed:")
+    || filePath.endsWith(".qzg")
+    || Boolean(manifest?.compressed);
   const chunkParts = manifest?.parts || [];
   return {
     ...resource,
@@ -932,7 +1002,7 @@ function filteredResources() {
   const search = state.search.trim().toLowerCase();
   const resources = state.resources.filter((resource) => {
     const matchesType = state.filter === "all"
-      || (state.filter === "other" ? ["model", "code", "other"].includes(resource.kind) : resource.kind === state.filter);
+      || (state.filter === "other" ? ["folder", "model", "code", "other"].includes(resource.kind) : resource.kind === state.filter);
     if (!matchesType) {
       return false;
     }
@@ -1416,10 +1486,16 @@ async function createFolderZip(folderName, files) {
   endView.setUint32(16, centralOffset, true);
   endView.setUint16(20, 0, true);
 
-  return new File([...parts, ...centralParts, endRecord], `${folderName}.zip`, {
+  const archive = new File([...parts, ...centralParts, endRecord], `${folderName}.zip`, {
     type: "application/zip",
     lastModified: Date.now()
   });
+  Object.defineProperty(archive, "resourceKind", {
+    value: "folder",
+    enumerable: true,
+    configurable: false
+  });
+  return archive;
 }
 
 async function addFiles(fileList) {
@@ -1847,7 +1923,9 @@ async function uploadToSupabase(item, metadata) {
         compressed: prepared.compressed,
         parts: uploadedPaths
       })}`
-      : uploadedPaths[0];
+      : prepared.compressed
+        ? `compressed:${uploadedPaths[0]}`
+        : uploadedPaths[0];
     const row = {
       id,
       name: metadata.name || item.file.name,
@@ -1886,12 +1964,15 @@ async function removeSupabaseObject(resource) {
   if (!resource || !resource.filePath) {
     return;
   }
-  const manifest = parseChunkManifest(resource.filePath);
+  const filePath = resource.filePath.startsWith("compressed:")
+    ? resource.filePath.slice("compressed:".length)
+    : resource.filePath;
+  const manifest = parseChunkManifest(filePath);
   const paths = manifest
     ? manifest.parts
-    : resource.filePath.includes(",")
-      ? resource.filePath.split(",").filter(Boolean)
-      : [resource.filePath];
+    : filePath.includes(",")
+      ? filePath.split(",").filter(Boolean)
+      : [filePath];
   await fetchWithTimeout(`${SUPABASE_URL}/storage/v1/object/${SUPABASE_BUCKET}`, {
     method: "DELETE",
     headers: supabaseHeaders({ "Content-Type": "application/json" }),
@@ -2060,8 +2141,25 @@ function openPreview(id) {
   elements.previewTitle.textContent = resource.originalName || resource.name;
   const url = getObjectUrl(resource);
   let preview = "";
+  let loadTextDocument = false;
 
-  if (resource.chunked) {
+  if (resource.kind === "folder") {
+    preview = `
+      <div class="preview-placeholder">
+        <span data-icon="folder-tree"></span>
+        <strong>${escapeHTML(resource.name)}</strong>
+        <span>文件夹已保留目录结构，下载后解压即可恢复原文件夹。</span>
+      </div>
+    `;
+  } else if (resource.compressed && !resource.chunked) {
+    preview = `
+      <div class="preview-placeholder">
+        <span data-icon="${escapeHTML(typeIcon(resource.kind))}"></span>
+        <strong>${escapeHTML(resource.name)}</strong>
+        <span>文件已压缩保存，下载时会自动恢复原文件。</span>
+      </div>
+    `;
+  } else if (resource.chunked) {
     preview = `
       <div class="preview-placeholder">
         <span data-icon="${escapeHTML(typeIcon(resource.kind))}"></span>
@@ -2077,6 +2175,24 @@ function openPreview(id) {
     preview = `<audio src="${escapeHTML(url)}" controls autoplay preload="metadata"></audio>`;
   } else if (isPdf(resource) && url) {
     preview = `<iframe src="${escapeHTML(url)}" title="${escapeHTML(resource.name)}"></iframe>`;
+  } else if (["document", "code"].includes(resource.kind) && url) {
+    const documentType = getDocumentPreviewType(resource);
+    if (documentType === "office" && resource.url && !resource.blob) {
+      const absoluteUrl = new URL(resource.url, window.location.href).href;
+      const viewerUrl = `https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(absoluteUrl)}`;
+      preview = `<iframe src="${escapeHTML(viewerUrl)}" title="${escapeHTML(resource.name)}"></iframe>`;
+    } else if (documentType === "text") {
+      preview = `<pre class="document-preview" data-document-preview>正在加载文档内容…</pre>`;
+      loadTextDocument = true;
+    } else {
+      preview = `
+        <div class="preview-placeholder">
+          <span data-icon="${escapeHTML(typeIcon(resource.kind))}"></span>
+          <strong>${escapeHTML(resource.name)}</strong>
+          <span>该文档暂不支持在线预览，可下载后打开。</span>
+        </div>
+      `;
+    }
   } else {
     const summary = resource.description
       || (resource.kind === "archive"
@@ -2092,6 +2208,9 @@ function openPreview(id) {
   }
 
   elements.previewArea.innerHTML = preview;
+  if (loadTextDocument) {
+    loadTextDocumentPreview(resource);
+  }
   const tags = resource.tags.length ? resource.tags.join("、") : "无标签";
   elements.previewMeta.innerHTML = `
     <div class="preview-meta__item"><span>文件大小</span><strong>${escapeHTML(formatBytes(resource.size))}</strong></div>
