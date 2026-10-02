@@ -209,6 +209,9 @@ const elements = {
   readerTitle: document.getElementById("readerTitle"),
   readerBody: document.getElementById("readerBody"),
   readerText: document.getElementById("readerText"),
+  readerEmbed: document.getElementById("readerEmbed"),
+  readerFrame: document.getElementById("readerFrame"),
+  readerEmbedEmpty: document.getElementById("readerEmbedEmpty"),
   readerBackButton: document.getElementById("readerBackButton"),
   readerFontDownButton: document.getElementById("readerFontDownButton"),
   readerFontUpButton: document.getElementById("readerFontUpButton"),
@@ -2781,7 +2784,7 @@ function supportsPreviewFullscreen() {
 }
 
 function isPreviewReadingSupported(resource) {
-  return isTextReaderResource(resource);
+  return isDocumentReadingResource(resource);
 }
 
 function syncPreviewFullscreenButton() {
@@ -2814,14 +2817,13 @@ function syncPreviewReadingButton() {
 
 function togglePreviewReading() {
   const resource = state.previewResource || findResource(state.previewId);
-  if (resource && isTextReaderResource(resource)) {
+  if (resource && isDocumentReadingResource(resource)) {
     const id = resource.id;
-    const cachedText = state.textDocumentCache.get(id);
     const prepared = state.previewResource;
     state.previewHandoff = true;
     closePreview();
     openReader(id, {
-      text: typeof cachedText === "string" ? cachedText : undefined,
+      text: isTextReaderResource(resource) ? state.textDocumentCache.get(id) : undefined,
       resource: prepared
     });
     return;
@@ -3062,13 +3064,19 @@ function closePreview() {
 }
 
 function isTextReaderResource(resource) {
+  return isDocumentReadingResource(resource)
+    && getDocumentPreviewType(resource) === "text";
+}
+
+function isDocumentReadingResource(resource) {
   if (!resource || resource.kind !== "document") {
     return false;
   }
   if (resource.compressed && resource.chunked) {
     return false;
   }
-  return getDocumentPreviewType(resource) === "text";
+  const documentType = getDocumentPreviewType(resource);
+  return documentType === "text" || documentType === "pdf" || documentType === "office";
 }
 
 function syncReaderFullscreenButton() {
@@ -3175,6 +3183,32 @@ async function toggleReaderFullscreen() {
   syncReaderFullscreenButton();
 }
 
+function renderReaderEmbed(resource) {
+  const documentType = getDocumentPreviewType(resource);
+  const url = getObjectUrl(resource);
+  let embedUrl = "";
+  if (documentType === "pdf" && url) {
+    embedUrl = url;
+  } else if (
+    documentType === "office"
+    && resource.url
+    && !resource.blob
+    && !resource.url.startsWith("blob:")
+  ) {
+    const absoluteUrl = new URL(resource.url, window.location.href).href;
+    embedUrl = `https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(absoluteUrl)}`;
+  }
+  if (embedUrl) {
+    elements.readerFrame.hidden = false;
+    elements.readerEmbedEmpty.hidden = true;
+    elements.readerFrame.src = embedUrl;
+    return;
+  }
+  elements.readerFrame.hidden = true;
+  elements.readerFrame.removeAttribute("src");
+  elements.readerEmbedEmpty.hidden = false;
+}
+
 async function openReader(id, options = {}) {
   const resource = findResource(id);
   if (!resource) {
@@ -3187,10 +3221,30 @@ async function openReader(id, options = {}) {
   state.readerPages = [];
   state.readerPageIndex = 0;
   elements.readerPager.hidden = true;
-  elements.readerText.textContent = "正在加载文档内容…";
   elements.readerView.classList.add("is-open");
   elements.readerView.setAttribute("aria-hidden", "false");
   document.body.classList.add("modal-open");
+
+  const documentType = getDocumentPreviewType(resource);
+  const embedMode = documentType === "pdf" || documentType === "office";
+  elements.readerView.classList.toggle("is-embed", embedMode);
+  elements.readerBody.hidden = embedMode;
+  elements.readerEmbed.hidden = !embedMode;
+
+  if (embedMode) {
+    const prepared = options.resource
+      || await preparePreviewResource(resource, "正在准备文档阅读")
+      || resource;
+    if (state.readerId !== id) {
+      return;
+    }
+    state.readerResource = prepared;
+    renderReaderEmbed(prepared);
+    syncReaderControls();
+    return;
+  }
+
+  elements.readerText.textContent = "正在加载文档内容…";
   syncReaderControls();
 
   if (typeof options.text === "string") {
@@ -3228,9 +3282,14 @@ function closeReader() {
       // Ignore if the browser has already left fullscreen.
     });
   }
-  elements.readerView.classList.remove("is-open", "is-reading", "is-code", "is-expanded");
+  elements.readerView.classList.remove("is-open", "is-reading", "is-code", "is-expanded", "is-embed");
   elements.readerView.setAttribute("aria-hidden", "true");
   elements.readerText.textContent = "";
+  elements.readerBody.hidden = false;
+  elements.readerEmbed.hidden = true;
+  elements.readerFrame.hidden = true;
+  elements.readerFrame.removeAttribute("src");
+  elements.readerEmbedEmpty.hidden = true;
   state.readerPages = [];
   state.readerPageIndex = 0;
   elements.readerPager.hidden = true;
