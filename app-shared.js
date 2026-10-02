@@ -2548,6 +2548,9 @@ function renderAudioPlayer(resource) {
         <button class="icon-button" type="button" data-audio-next aria-label="下一首" title="下一首">
           <span data-icon="skip-forward"></span>
         </button>
+        <button class="icon-button audio-player__close" type="button" data-audio-close aria-label="关闭播放器" title="关闭播放器">
+          <span data-icon="x"></span>
+        </button>
       </div>
       <div class="audio-playlist" aria-label="播放列表">
         ${playlist.map((entry, index) => `
@@ -2657,6 +2660,7 @@ function setupAudioPlayer() {
   };
 
   audio.addEventListener("play", () => player.classList.add("is-playing"));
+  audio.addEventListener("playing", () => player.classList.add("is-playing"));
   audio.addEventListener("pause", () => player.classList.remove("is-playing"));
   audio.addEventListener("ended", () => playIndex(getNextIndex(1)));
   player.querySelector("[data-audio-prev]").addEventListener("click", () => {
@@ -2668,6 +2672,12 @@ function setupAudioPlayer() {
   modeButton.addEventListener("click", () => {
     state.audioMode = state.audioMode === "shuffle" ? "sequence" : "shuffle";
     updateModeButton();
+  });
+  player.querySelector("[data-audio-close]").addEventListener("click", () => {
+    audio.pause();
+    player.remove();
+    state.audioPlaylist = [];
+    state.audioIndex = -1;
   });
   trackButtons.forEach((button) => {
     button.addEventListener("click", () => {
