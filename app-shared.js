@@ -19,6 +19,7 @@ const ICONS = {
   "music": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>',
   "maximize": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3"/><path d="M21 8V5a2 2 0 0 0-2-2h-3"/><path d="M3 16v3a2 2 0 0 0 2 2h3"/><path d="M16 21h3a2 2 0 0 0 2-2v-3"/></svg>',
   "minimize": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3v3a2 2 0 0 1-2 2H3"/><path d="M21 8h-3a2 2 0 0 1-2-2V3"/><path d="M3 16h3a2 2 0 0 1 2 2v3"/><path d="M16 21v-3a2 2 0 0 1 2-2h3"/></svg>',
+  "minus": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/></svg>',
   "package-open": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22v-9"/><path d="M15.17 2.21 12 5.38 8.83 2.21 3.77 5.25A2 2 0 0 0 2.72 7v10a2 2 0 0 0 1.05 1.76l7 4A2 2 0 0 0 12 22a2 2 0 0 0 1.23-.24l7-4A2 2 0 0 0 21.28 17V7a2 2 0 0 0-1.05-1.75Z"/><path d="m7 8 5 3 5-3"/><path d="m7 13 5 3 5-3"/></svg>',
   "pencil": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"/><path d="m15 5 4 4"/></svg>',
   "plus": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg>',
@@ -134,6 +135,10 @@ const state = {
   previewId: "",
   previewObjectUrl: "",
   previewReading: false,
+  readerId: "",
+  readerResource: null,
+  readerReading: true,
+  readerFontScale: 1,
   audioPlaylist: [],
   audioIndex: -1,
   audioMode: "sequence",
@@ -193,6 +198,17 @@ const elements = {
   previewFullscreenButton: document.getElementById("previewFullscreenButton"),
   previewDownloadButton: document.getElementById("previewDownloadButton"),
   copyLinkButton: document.getElementById("copyLinkButton"),
+  readerView: document.getElementById("readerView"),
+  readerTitle: document.getElementById("readerTitle"),
+  readerBody: document.getElementById("readerBody"),
+  readerText: document.getElementById("readerText"),
+  readerBackButton: document.getElementById("readerBackButton"),
+  readerFontDownButton: document.getElementById("readerFontDownButton"),
+  readerFontUpButton: document.getElementById("readerFontUpButton"),
+  readerScale: document.getElementById("readerScale"),
+  readerReadingButton: document.getElementById("readerReadingButton"),
+  readerFullscreenButton: document.getElementById("readerFullscreenButton"),
+  readerDownloadButton: document.getElementById("readerDownloadButton"),
   audioRestoreButton: document.getElementById("audioRestoreButton"),
   adminModal: document.getElementById("adminModal"),
   adminForm: document.getElementById("adminForm"),
@@ -450,36 +466,40 @@ function decodeTextBuffer(buffer, contentType = "") {
   return new TextDecoder("utf-8").decode(bytes);
 }
 
+async function readTextDocument(resource) {
+  const url = getObjectUrl(resource);
+  if (!url) {
+    throw new Error("无法读取文档内容。");
+  }
+  const response = await fetchWithTimeout(url, { cache: "no-store" }, 120000);
+  if (!response.ok && response.status !== 0) {
+    throw new Error("文档读取失败");
+  }
+  const contentType = response.headers.get("content-type") || resource.mime || "";
+  let buffer = await response.arrayBuffer();
+  const head = new Uint8Array(buffer, 0, Math.min(buffer.byteLength, 2));
+  if (head.length === 2 && head[0] === 0x1f && head[1] === 0x8b) {
+    const decompressedBlob = await decompressBlob(new Blob([buffer]));
+    buffer = await decompressedBlob.arrayBuffer();
+  }
+  let text = decodeTextBuffer(buffer, contentType);
+  if (String(resource.name || "").toLowerCase().endsWith(".json")) {
+    try {
+      text = JSON.stringify(JSON.parse(text), null, 2);
+    } catch (error) {
+      // Keep the original text if JSON parsing fails.
+    }
+  }
+  return text;
+}
+
 async function loadTextDocumentPreview(resource) {
   const target = elements.previewArea.querySelector("[data-document-preview]");
   if (!target) {
     return;
   }
-  const url = getObjectUrl(resource);
-  if (!url) {
-    target.textContent = "无法读取文档内容。";
-    return;
-  }
   try {
-    const response = await fetchWithTimeout(url, { cache: "no-store" }, 120000);
-    if (!response.ok && response.status !== 0) {
-      throw new Error("文档读取失败");
-    }
-    const contentType = response.headers.get("content-type") || resource.mime || "";
-    let buffer = await response.arrayBuffer();
-    const head = new Uint8Array(buffer, 0, Math.min(buffer.byteLength, 2));
-    if (head.length === 2 && head[0] === 0x1f && head[1] === 0x8b) {
-      const decompressedBlob = await decompressBlob(new Blob([buffer]));
-      buffer = await decompressedBlob.arrayBuffer();
-    }
-    let text = decodeTextBuffer(buffer, contentType);
-    if (String(resource.name || "").toLowerCase().endsWith(".json")) {
-      try {
-        text = JSON.stringify(JSON.parse(text), null, 2);
-      } catch (error) {
-        // Keep the original text if JSON parsing fails.
-      }
-    }
+    const text = await readTextDocument(resource);
     if (!elements.previewArea.contains(target)) {
       return;
     }
@@ -2776,6 +2796,45 @@ async function togglePreviewFullscreen() {
   syncPreviewFullscreenButton();
 }
 
+async function preparePreviewResource(resource, title = "正在准备文档预览") {
+  if (!resource.compressed || resource.chunked) {
+    return resource;
+  }
+  const progressToast = showProgressToast(title, resource.name);
+  try {
+    const sourceUrl = resource.url || getObjectUrl(resource);
+    if (!sourceUrl) {
+      throw new Error("文件地址不可用");
+    }
+    const compressedBlob = await fetchBlobWithProgress(sourceUrl, (loaded, total) => {
+      progressToast.update(
+        total ? (loaded / total) * 90 : 0,
+        total ? `${formatBytes(loaded)} / ${formatBytes(total)}` : `已读取 ${formatBytes(loaded)}`
+      );
+    });
+    progressToast.update(94, "正在恢复原文件");
+    const originalBlob = await decompressBlob(compressedBlob);
+    const previewBlob = new Blob(
+      [originalBlob],
+      { type: resource.originalMime || resource.mime || "application/octet-stream" }
+    );
+    if (state.previewObjectUrl) {
+      URL.revokeObjectURL(state.previewObjectUrl);
+    }
+    state.previewObjectUrl = URL.createObjectURL(previewBlob);
+    progressToast.complete("预览已准备", resource.name);
+    return {
+      ...resource,
+      url: state.previewObjectUrl,
+      blob: null,
+      compressed: false
+    };
+  } catch (error) {
+    progressToast.fail("预览准备失败", error.message || "请下载后查看");
+    return null;
+  }
+}
+
 async function openPreview(id) {
   let resource = findResource(id);
   if (!resource) {
@@ -2783,40 +2842,10 @@ async function openPreview(id) {
   }
 
   state.previewId = id;
-  if (resource.compressed && !resource.chunked) {
-    const progressToast = showProgressToast("正在准备文档预览", resource.name);
-    try {
-      const sourceUrl = resource.url || getObjectUrl(resource);
-      if (!sourceUrl) {
-        throw new Error("文件地址不可用");
-      }
-      const compressedBlob = await fetchBlobWithProgress(sourceUrl, (loaded, total) => {
-        progressToast.update(
-          total ? (loaded / total) * 90 : 0,
-          total ? `${formatBytes(loaded)} / ${formatBytes(total)}` : `已读取 ${formatBytes(loaded)}`
-        );
-      });
-      progressToast.update(94, "正在恢复原文件");
-      const originalBlob = await decompressBlob(compressedBlob);
-      const previewBlob = new Blob(
-        [originalBlob],
-        { type: resource.originalMime || resource.mime || "application/octet-stream" }
-      );
-      if (state.previewObjectUrl) {
-        URL.revokeObjectURL(state.previewObjectUrl);
-      }
-      state.previewObjectUrl = URL.createObjectURL(previewBlob);
-      resource = {
-        ...resource,
-        url: state.previewObjectUrl,
-        blob: null,
-        compressed: false
-      };
-      progressToast.complete("预览已准备", resource.name);
-    } catch (error) {
-      progressToast.fail("预览准备失败", error.message || "请下载后查看");
-      return;
-    }
+  resource = await preparePreviewResource(resource);
+  if (!resource) {
+    state.previewId = "";
+    return;
   }
   elements.previewTitle.textContent = resource.originalName || resource.name;
   const url = getObjectUrl(resource);
@@ -2970,6 +2999,137 @@ function closePreview() {
     state.previewObjectUrl = "";
   }
   syncModalOpenState();
+}
+
+function isTextReaderResource(resource) {
+  if (!resource || !["document", "code"].includes(resource.kind)) {
+    return false;
+  }
+  if (resource.compressed && resource.chunked) {
+    return false;
+  }
+  return getDocumentPreviewType(resource) === "text";
+}
+
+function syncReaderFullscreenButton() {
+  const active = document.fullscreenElement === elements.readerView;
+  elements.readerFullscreenButton.setAttribute("aria-pressed", String(active));
+  elements.readerFullscreenButton.setAttribute("aria-label", active ? "退出全屏" : "全屏显示");
+  elements.readerFullscreenButton.title = active ? "退出全屏" : "全屏显示";
+  const iconNode = elements.readerFullscreenButton.querySelector("[data-icon]");
+  if (iconNode) {
+    const name = active ? "minimize" : "maximize";
+    iconNode.dataset.icon = name;
+    iconNode.innerHTML = icon(name);
+  }
+}
+
+function syncReaderControls() {
+  const reading = Boolean(state.readerReading);
+  elements.readerView.classList.toggle("is-reading", reading);
+  elements.readerView.style.setProperty("--reader-scale", String(state.readerFontScale));
+  elements.readerScale.textContent = `${Math.round(state.readerFontScale * 100)}%`;
+  elements.readerReadingButton.setAttribute("aria-pressed", String(reading));
+  elements.readerReadingButton.setAttribute("aria-label", reading ? "退出阅读模式" : "阅读模式");
+  elements.readerReadingButton.title = reading ? "退出阅读模式" : "阅读模式";
+  elements.readerFontDownButton.disabled = state.readerFontScale <= 0.8;
+  elements.readerFontUpButton.disabled = state.readerFontScale >= 1.8;
+  syncReaderFullscreenButton();
+}
+
+function toggleReaderReading() {
+  state.readerReading = !state.readerReading;
+  syncReaderControls();
+}
+
+function adjustReaderFont(delta) {
+  const next = Math.min(1.8, Math.max(0.8, Math.round((state.readerFontScale + delta) * 100) / 100));
+  state.readerFontScale = next;
+  syncReaderControls();
+}
+
+async function toggleReaderFullscreen() {
+  if (!elements.readerView) {
+    return;
+  }
+  if (document.fullscreenElement === elements.readerView) {
+    await document.exitFullscreen();
+    return;
+  }
+  if (!document.fullscreenEnabled || typeof elements.readerView.requestFullscreen !== "function") {
+    return;
+  }
+  try {
+    await elements.readerView.requestFullscreen();
+  } catch (error) {
+    // The reader already fills the page if the browser blocks fullscreen.
+  }
+  syncReaderFullscreenButton();
+}
+
+async function openReader(id) {
+  const resource = findResource(id);
+  if (!resource) {
+    return;
+  }
+  state.readerId = id;
+  elements.readerTitle.textContent = resource.originalName || resource.name;
+  elements.readerView.classList.toggle("is-code", resource.kind === "code");
+  elements.readerText.textContent = "正在加载文档内容…";
+  elements.readerView.classList.add("is-open");
+  elements.readerView.setAttribute("aria-hidden", "false");
+  document.body.classList.add("modal-open");
+  syncReaderControls();
+
+  const prepared = await preparePreviewResource(resource, "正在准备文档阅读");
+  if (state.readerId !== id) {
+    return;
+  }
+  if (!prepared) {
+    elements.readerText.textContent = "文档准备失败，请下载后查看。";
+    return;
+  }
+  state.readerResource = prepared;
+  elements.readerBody.scrollTop = 0;
+  try {
+    const text = await readTextDocument(prepared);
+    if (state.readerId !== id) {
+      return;
+    }
+    elements.readerText.textContent = text;
+    elements.readerBody.scrollTop = 0;
+  } catch (error) {
+    if (state.readerId === id) {
+      elements.readerText.textContent = error.message || "文档读取失败";
+    }
+  }
+}
+
+function closeReader() {
+  if (document.fullscreenElement === elements.readerView && typeof document.exitFullscreen === "function") {
+    document.exitFullscreen().catch(() => {
+      // Ignore if the browser has already left fullscreen.
+    });
+  }
+  elements.readerView.classList.remove("is-open", "is-reading", "is-code");
+  elements.readerView.setAttribute("aria-hidden", "true");
+  elements.readerText.textContent = "";
+  state.readerId = "";
+  state.readerResource = null;
+  if (state.previewObjectUrl) {
+    URL.revokeObjectURL(state.previewObjectUrl);
+    state.previewObjectUrl = "";
+  }
+  syncModalOpenState();
+}
+
+function openResourceDefault(id) {
+  const resource = findResource(id);
+  if (resource && isTextReaderResource(resource)) {
+    openReader(id);
+    return;
+  }
+  openPreview(id);
 }
 
 async function copyText(value) {
@@ -3127,7 +3287,7 @@ function closeDeleteConfirm() {
 }
 
 function syncModalOpenState() {
-  const hasOpenModal = Boolean(document.querySelector(".modal.is-open"));
+  const hasOpenModal = Boolean(document.querySelector(".modal.is-open, .reader.is-open"));
   document.body.classList.toggle("modal-open", hasOpenModal);
 }
 
@@ -3587,13 +3747,13 @@ function bindEvents() {
     if (!action) {
       const playableRow = event.target.closest(".resource-row.is-playable");
       if (playableRow) {
-        openPreview(playableRow.dataset.resourceId);
+        openResourceDefault(playableRow.dataset.resourceId);
       }
       return;
     }
     const id = action.dataset.id;
     if (action.dataset.action === "preview") {
-      openPreview(id);
+      openResourceDefault(id);
     } else if (action.dataset.action === "edit") {
       openEdit(id);
     } else if (action.dataset.action === "download") {
@@ -3609,7 +3769,7 @@ function bindEvents() {
     const playableRow = event.target.closest(".resource-row.is-playable");
     if (playableRow && !event.target.closest("button, input, a")) {
       event.preventDefault();
-      openPreview(playableRow.dataset.resourceId);
+      openResourceDefault(playableRow.dataset.resourceId);
     }
   });
 
@@ -3622,7 +3782,22 @@ function bindEvents() {
   elements.previewFullscreenButton.addEventListener("click", () => {
     togglePreviewFullscreen();
   });
-  document.addEventListener("fullscreenchange", syncPreviewFullscreenButton);
+  elements.readerBackButton.addEventListener("click", closeReader);
+  elements.readerReadingButton.addEventListener("click", toggleReaderReading);
+  elements.readerFontDownButton.addEventListener("click", () => adjustReaderFont(-0.1));
+  elements.readerFontUpButton.addEventListener("click", () => adjustReaderFont(0.1));
+  elements.readerFullscreenButton.addEventListener("click", () => {
+    toggleReaderFullscreen();
+  });
+  elements.readerDownloadButton.addEventListener("click", () => {
+    if (state.readerId) {
+      downloadResource(state.readerId);
+    }
+  });
+  document.addEventListener("fullscreenchange", () => {
+    syncPreviewFullscreenButton();
+    syncReaderFullscreenButton();
+  });
   elements.copyLinkButton.addEventListener("click", copyResourceLink);
   elements.editForm.addEventListener("submit", saveEdit);
   elements.confirmDeleteButton.addEventListener("click", () => {
@@ -3657,6 +3832,8 @@ function bindEvents() {
       closeAdminModal();
     } else if (elements.editModal.classList.contains("is-open")) {
       closeEdit();
+    } else if (elements.readerView.classList.contains("is-open")) {
+      closeReader();
     } else if (elements.previewModal.classList.contains("is-open")) {
       closePreview();
     }
