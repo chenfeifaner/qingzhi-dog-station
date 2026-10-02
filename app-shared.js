@@ -48,7 +48,6 @@ const SUPABASE_UPLOAD_LIMIT = 100 * 1024 * 1024;
 const ADMIN_PASSWORD = "我是青雀大人的狗";
 const ADMIN_PASSWORD_PINYIN = "woshiqingquedarendegou";
 const ADMIN_SESSION_KEY = "qingzhi_admin_session";
-const OWNER_TOKEN_KEY = "qingzhi_owner_token_v1";
 const SUPABASE_URL = "https://vdihfdrylanbfyrhvnnl.supabase.co";
 const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_rMzNSWTBYgTa13AMLUgieQ_fq-RnPHY";
 const SUPABASE_TABLE = "resource_items";
@@ -69,59 +68,6 @@ function writeAdminSession(enabled) {
   } catch (error) {
     // Session storage can be unavailable in locked-down browsing contexts.
   }
-}
-
-function getOwnerToken() {
-  try {
-    const existing = localStorage.getItem(OWNER_TOKEN_KEY);
-    if (existing) {
-      return existing;
-    }
-    const token = createId();
-    localStorage.setItem(OWNER_TOKEN_KEY, token);
-    return token;
-  } catch (error) {
-    return "anonymous";
-  }
-}
-
-function getVisibilityCategory(resource) {
-  const category = String(resource?.category || "");
-  return category.startsWith("private:") || category === "private"
-    ? "private"
-    : "public";
-}
-
-function getResourceOwnerToken(resource) {
-  const category = String(resource?.category || "");
-  if (category.startsWith("private:")) {
-    return category.slice("private:".length);
-  }
-  if (category.startsWith("public:")) {
-    return category.slice("public:".length);
-  }
-  return "";
-}
-
-function defaultUploadVisibility() {
-  return state.mode === "local" ? "public" : "private";
-}
-
-function syncVisibilityDefault() {
-  if (elements.visibilitySelect) {
-    elements.visibilitySelect.value = defaultUploadVisibility();
-  }
-}
-
-function getUploadCategory(visibility) {
-  return `${visibility === "private" ? "private" : "public"}:${getOwnerToken()}`;
-}
-
-function canViewResource(resource) {
-  if (state.isAdmin || getVisibilityCategory(resource) === "public") {
-    return true;
-  }
-  return getResourceOwnerToken(resource) === getOwnerToken();
 }
 
 function readResourceCache() {
@@ -193,7 +139,6 @@ const elements = {
   chooseFolderButton: document.getElementById("chooseFolderButton"),
   clipboardButton: document.getElementById("clipboardButton"),
   resourceNameInput: document.getElementById("resourceNameInput"),
-  visibilitySelect: document.getElementById("visibilitySelect"),
   tagsInput: document.getElementById("tagsInput"),
   descriptionInput: document.getElementById("descriptionInput"),
   queue: document.getElementById("queue"),
@@ -508,7 +453,6 @@ function submitAdmin(event) {
 
 function setStorageMode(mode) {
   state.mode = mode;
-  syncVisibilityDefault();
   updateStorageBadge(mode);
 }
 
@@ -588,7 +532,6 @@ async function switchStorageMode(targetMode) {
   if (targetMode === "offline") {
     state.mode = "local";
     state.cloudOffline = false;
-    syncVisibilityDefault();
     updateStorageBadge("local");
     state.selectedIds.clear();
     state.page = 1;
@@ -607,7 +550,6 @@ async function switchStorageMode(targetMode) {
   state.page = 1;
   state.mode = "supabase";
   state.cloudOffline = false;
-  syncVisibilityDefault();
   updateStorageBadge("supabase");
   await loadSupabasePage();
   if (state.cloudOffline) {
@@ -757,9 +699,6 @@ function buildSupabasePageUrl() {
 
   const search = state.search.trim();
   const conditions = [];
-  if (!state.isAdmin) {
-    conditions.push(`or(category.not.like.private*,category.eq.private:${getOwnerToken()})`);
-  }
   if (search) {
     const escaped = search.replace(/[(),{}]/g, " ").slice(0, 80);
     conditions.push(`or(name.ilike.*${escaped}*,description.ilike.*${escaped}*,tags.cs.{${escaped}})`);
@@ -802,8 +741,7 @@ async function loadSupabasePage() {
         state.resources = cachedResources
           .slice(0, state.pageSize)
           .map(normalizeResource)
-          .filter(Boolean)
-          .filter(canViewResource);
+          .filter(Boolean);
         state.supabaseTotal = Number(localStorage.getItem(`${RESOURCE_CACHE_KEY}_total`)) || state.resources.length;
         state.supabaseTotalSize = Number(localStorage.getItem(`${RESOURCE_CACHE_KEY}_total_size`)) || 0;
         renderAll();
@@ -844,8 +782,7 @@ async function loadSupabasePage() {
     state.cloudOffline = true;
     const localResources = (await getAllLocalResources())
       .map(normalizeResource)
-      .filter(Boolean)
-      .filter(canViewResource);
+      .filter(Boolean);
     state.resources = localResources;
     updateStorageBadge("supabase-offline");
     renderAll();
@@ -869,8 +806,7 @@ async function loadResources() {
       if (cachedResources.length) {
         state.resources = cachedResources
           .map(normalizeResource)
-          .filter(Boolean)
-          .filter(canViewResource);
+          .filter(Boolean);
         renderAll();
       }
     }
@@ -912,8 +848,7 @@ async function loadResources() {
 
     state.resources = resources
       .map(normalizeResource)
-      .filter(Boolean)
-      .filter(canViewResource);
+      .filter(Boolean);
     state.selectedIds.clear();
     state.page = 1;
     if (state.mode === "supabase") {
@@ -926,8 +861,7 @@ async function loadResources() {
         await openDatabase();
         state.resources = (await getAllLocalResources())
           .map(normalizeResource)
-          .filter(Boolean)
-          .filter(canViewResource);
+          .filter(Boolean);
         state.selectedIds.clear();
         updateStorageBadge("supabase-offline");
         renderAll();
@@ -969,16 +903,12 @@ function normalizeResource(resource) {
   const manifest = parseChunkManifest(filePath);
   const compressed = resource.compressed === true || filePath.endsWith(".qzg") || Boolean(manifest?.compressed);
   const chunkParts = manifest?.parts || [];
-  const visibility = getVisibilityCategory(resource);
-  const ownerToken = getResourceOwnerToken(resource);
   return {
     ...resource,
     name,
     kind: resource.kind || getKind(fallbackFile),
-    category: resource.category || "public",
+    category: resource.category || "其他",
     tags,
-    visibility,
-    ownerToken,
     size: Number(resource.size || resource.fileSize) || 0,
     url: resource.url || resource.file_url || "",
     filePath,
@@ -1097,7 +1027,6 @@ function renderResources() {
 
   elements.resourceList.innerHTML = resources.map((resource) => {
     const tags = resource.tags.length ? ` · ${resource.tags.slice(0, 2).join(" / ")}` : "";
-    const visibilityText = resource.visibility === "private" ? " · 私密" : " · 公开";
     const playable = ["image", "video", "audio"].includes(resource.kind);
     const selection = state.isAdmin
       ? `<label class="resource-select" aria-label="选择 ${escapeHTML(resource.name)}">
@@ -1131,7 +1060,7 @@ function renderResources() {
           ${resourceIconHTML(resource)}
           <div class="resource-main__copy">
             <strong title="${escapeHTML(resource.name)}">${escapeHTML(resource.name)}</strong>
-            <span title="${escapeHTML(resource.description || "")}">${escapeHTML(formatBytes(resource.size))} · ${escapeHTML(resource.mime || "未知类型")}${escapeHTML(tags)}${escapeHTML(visibilityText)}</span>
+            <span title="${escapeHTML(resource.description || "")}">${escapeHTML(formatBytes(resource.size))} · ${escapeHTML(resource.mime || "未知类型")}${escapeHTML(tags)}</span>
           </div>
         </div>
         <span class="resource-cell"><span class="type-chip type-chip--${escapeHTML(resource.kind)}">${escapeHTML(typeLabel(resource.kind))}</span></span>
@@ -1539,7 +1468,7 @@ function uploadMetadata(file, index = 0, total = 1) {
   return {
     fileName: file.name,
     name,
-    category: getUploadCategory(elements.visibilitySelect.value),
+    category: "其他",
     tags: elements.tagsInput.value.split(/[,，]/).map((tag) => tag.trim()).filter(Boolean).slice(0, 8),
     description: elements.descriptionInput.value.trim()
   };
@@ -1927,14 +1856,13 @@ async function startUpload() {
 
   if (successCount && !failedCount) {
     elements.resourceNameInput.value = "";
-    const visibilityText = elements.visibilitySelect.value === "private" ? "私密" : "公开";
     elements.tagsInput.value = "";
     elements.descriptionInput.value = "";
     showToast(
       "全部上传完成",
       state.mode === "local"
-        ? `${successCount} 个${visibilityText}资源已保存，切换到在线后自动同步`
-        : `${successCount} 个${visibilityText}资源已上传`
+        ? `${successCount} 个资源已保存，切换到在线后自动同步`
+        : `${successCount} 个资源已上传`
     );
   } else if (successCount && failedCount) {
     showToast("上传部分完成", `${successCount} 个成功，${failedCount} 个失败`, "error");
@@ -1989,14 +1917,13 @@ function openPreview(id) {
   elements.previewMeta.innerHTML = `
     <div class="preview-meta__item"><span>文件大小</span><strong>${escapeHTML(formatBytes(resource.size))}</strong></div>
     <div class="preview-meta__item"><span>存储方式</span><strong>${resource.storage === "browser" ? "临时文件" : resource.chunked ? "分片文件" : "已上传"}</strong></div>
-    <div class="preview-meta__item"><span>可见范围</span><strong>${resource.visibility === "private" ? "私密" : "公开"}</strong></div>
     <div class="preview-meta__item"><span>标签</span><strong title="${escapeHTML(tags)}">${escapeHTML(tags)}</strong></div>
     <div class="preview-meta__item"><span>上传时间</span><strong>${escapeHTML(formatDate(resource.uploadedAt))}</strong></div>
     <div class="preview-meta__item"><span>文件类型</span><strong>${escapeHTML(typeLabel(resource.kind))}</strong></div>
     <div class="preview-meta__item"><span>备注</span><strong title="${escapeHTML(resource.description || "无")}">${escapeHTML(resource.description || "无")}</strong></div>
   `;
   hydrateIcons(elements.previewArea);
-  elements.copyLinkButton.hidden = !["server", "supabase"].includes(state.mode) || !resource.url || resource.visibility === "private";
+  elements.copyLinkButton.hidden = !["server", "supabase"].includes(state.mode) || !resource.url;
   elements.previewModal.classList.add("is-open");
   elements.previewModal.setAttribute("aria-hidden", "false");
   document.body.classList.add("modal-open");
@@ -2174,7 +2101,7 @@ async function uploadLocalResourceToCloud(id) {
       { id: resource.id, file: resource.blob, kind: resource.kind },
       {
         name: resource.name,
-        category: resource.category || getUploadCategory(resource.visibility),
+        category: resource.category || "其他",
         tags: resource.tags || [],
         description: resource.description || ""
       }
