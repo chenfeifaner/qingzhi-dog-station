@@ -978,59 +978,162 @@ function resourceIconHTML(resource) {
   return `<span class="file-avatar file-avatar--${escapeHTML(resource.kind)}" data-icon="${escapeHTML(typeIcon(resource.kind))}"></span>`;
 }
 
-function getVideoThumbnail(resource) {
+async function getVideoThumbnail(resource) {
   if (!resource || resource.kind !== "video" || resource.chunked) {
-    return Promise.resolve("");
+    return "";
   }
   if (state.videoThumbs.has(resource.id)) {
-    return Promise.resolve(state.videoThumbs.get(resource.id));
+    return state.videoThumbs.get(resource.id);
   }
   const url = getObjectUrl(resource);
   if (!url) {
-    return Promise.resolve("");
+    return "";
   }
 
-  return new Promise((resolve) => {
-    const video = document.createElement("video");
-    video.crossOrigin = "anonymous";
-    video.muted = true;
-    video.playsInline = true;
-    video.preload = "metadata";
-    video.src = url;
-
-    const finish = (thumbnail = "") => {
-      video.removeAttribute("src");
-      video.load();
-      if (thumbnail) {
-        state.videoThumbs.set(resource.id, thumbnail);
+  const waitForEvent = (video, eventName, timeout = 4000) => new Promise((resolve) => {
+    let settled = false;
+    if (eventName === "loadeddata" && video.readyState >= 2) {
+      resolve(true);
+      return;
+    }
+    const timer = window.setTimeout(() => {
+      if (!settled) {
+        settled = true;
+        resolve(false);
       }
-      resolve(thumbnail);
-    };
-
-    video.addEventListener("loadeddata", () => {
-      try {
-        const width = video.videoWidth;
-        const height = video.videoHeight;
-        if (!width || !height) {
-          finish();
-          return;
-        }
-        const canvas = document.createElement("canvas");
-        canvas.width = width;
-        canvas.height = height;
-        const context = canvas.getContext("2d");
-        if (!context) {
-          finish();
-          return;
-        }
-        context.drawImage(video, 0, 0, width, height);
-        finish(canvas.toDataURL("image/jpeg", 0.78));
-      } catch (error) {
-        finish();
+    }, timeout);
+    video.addEventListener(eventName, () => {
+      if (!settled) {
+        settled = true;
+        window.clearTimeout(timer);
+        resolve(true);
       }
     }, { once: true });
-    video.addEventListener("error", () => finish(), { once: true });
   });
+
+  const seekVideo = (video, time) => new Promise((resolve) => {
+    let settled = false;
+    const timer = window.setTimeout(() => {
+      if (!settled) {
+        settled = true;
+        resolve(false);
+      }
+    }, 2500);
+    const onSeeked = () => {
+      if (!settled) {
+        settled = true;
+        window.clearTimeout(timer);
+        resolve(true);
+      }
+    };
+    video.addEventListener("seeked", onSeeked, { once: true });
+    try {
+      video.currentTime = time;
+    } catch (error) {
+      window.clearTimeout(timer);
+      settled = true;
+      resolve(false);
+    }
+  });
+
+  const captureFrame = (video) => {
+    try {
+      const width = video.videoWidth;
+      const height = video.videoHeight;
+      if (!width || !height) {
+        return null;
+      }
+
+      const sample = document.createElement("canvas");
+      sample.width = 32;
+      sample.height = 18;
+      const sampleContext = sample.getContext("2d", { willReadFrequently: true });
+      if (!sampleContext) {
+        return null;
+      }
+      sampleContext.drawImage(video, 0, 0, sample.width, sample.height);
+      const pixels = sampleContext.getImageData(0, 0, sample.width, sample.height).data;
+      let sum = 0;
+      let sumSquares = 0;
+      const count = pixels.length / 4;
+      for (let index = 0; index < pixels.length; index += 4) {
+        const luminance = pixels[index] * 0.2126 + pixels[index + 1] * 0.7152 + pixels[index + 2] * 0.0722;
+        sum += luminance;
+        sumSquares += luminance * luminance;
+      }
+      const average = sum / count;
+      const deviation = Math.sqrt(Math.max(0, sumSquares / count - average * average));
+      const useful = average > 18 && deviation > 10;
+
+      const scale = Math.min(1, 480 / width);
+      const canvas = document.createElement("canvas");
+      canvas.width = Math.max(1, Math.round(width * scale));
+      canvas.height = Math.max(1, Math.round(height * scale));
+      const context = canvas.getContext("2d");
+      if (!context) {
+        return null;
+      }
+      context.drawImage(video, 0, 0, canvas.width, canvas.height);
+      return {
+        dataUrl: canvas.toDataURL("image/jpeg", 0.8),
+        useful
+      };
+    } catch (error) {
+      return null;
+    }
+  };
+
+  const video = document.createElement("video");
+  video.crossOrigin = "anonymous";
+  video.muted = true;
+  video.playsInline = true;
+  video.preload = "auto";
+  video.src = url;
+
+  try {
+    const metadataReady = await waitForEvent(video, "loadeddata");
+    if (!metadataReady) {
+      return "";
+    }
+
+    const duration = Number.isFinite(video.duration) ? video.duration : 0;
+    const candidates = [
+      0.1,
+      0.5,
+      1,
+      2,
+      duration * 0.1,
+      duration * 0.25
+    ]
+      .map((time) => Math.max(0, Math.min(time, Math.max(0, duration - 0.05))))
+      .filter((time, index, list) => list.indexOf(time) === index);
+
+    let fallback = "";
+    for (const time of candidates) {
+      if (time > 0) {
+        await seekVideo(video, time);
+      }
+      const frame = captureFrame(video);
+      if (!frame) {
+        continue;
+      }
+      if (!fallback) {
+        fallback = frame.dataUrl;
+      }
+      if (frame.useful) {
+        state.videoThumbs.set(resource.id, frame.dataUrl);
+        return frame.dataUrl;
+      }
+    }
+
+    if (fallback) {
+      state.videoThumbs.set(resource.id, fallback);
+    }
+    return fallback;
+  } finally {
+    video.removeAttribute("src");
+    video.load();
+  }
 }
 
 async function hydrateVideoThumbnails(resources) {
