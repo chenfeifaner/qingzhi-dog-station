@@ -405,6 +405,84 @@ function showToast(title, detail = "", type = "success") {
   }, 3200);
 }
 
+function showProgressToast(title, detail = "") {
+  hydrateIcons(elements.toastRegion);
+  const toast = document.createElement("div");
+  toast.className = "toast toast--progress";
+  toast.innerHTML = `
+    <span data-icon="download"></span>
+    <div class="toast__progress-content">
+      <div class="toast__progress-copy">
+        <strong>${escapeHTML(title)}</strong>
+        <span>${escapeHTML(detail)}</span>
+      </div>
+      <div class="toast__progress-track" aria-hidden="true"><span></span></div>
+      <div class="toast__progress-meta">
+        <span class="toast__progress-percent">0%</span>
+        <span class="toast__progress-detail">${escapeHTML(detail)}</span>
+      </div>
+    </div>
+  `;
+  hydrateIcons(toast);
+  elements.toastRegion.appendChild(toast);
+
+  const titleNode = toast.querySelector(".toast__progress-copy strong");
+  const copyDetail = toast.querySelector(".toast__progress-copy > span");
+  const track = toast.querySelector(".toast__progress-track > span");
+  const percentNode = toast.querySelector(".toast__progress-percent");
+  const detailNode = toast.querySelector(".toast__progress-detail");
+  let removalTimer = null;
+
+  const update = (percent, nextDetail = detail) => {
+    const value = Math.max(0, Math.min(100, Number(percent) || 0));
+    track.style.width = `${value}%`;
+    percentNode.textContent = `${Math.round(value)}%`;
+    if (nextDetail) {
+      detailNode.textContent = nextDetail;
+      copyDetail.textContent = nextDetail;
+    }
+  };
+
+  const finish = (success, nextTitle, nextDetail) => {
+    window.clearTimeout(removalTimer);
+    toast.classList.add(success ? "toast--success" : "toast--error");
+    titleNode.textContent = nextTitle;
+    update(100, nextDetail);
+    removalTimer = window.setTimeout(() => {
+      toast.classList.add("is-leaving");
+      window.setTimeout(() => toast.remove(), 200);
+    }, success ? 3000 : 5000);
+  };
+
+  update(0, detail);
+  return {
+    update,
+    complete: (nextTitle, nextDetail) => finish(true, nextTitle, nextDetail),
+    fail: (nextTitle, nextDetail) => finish(false, nextTitle, nextDetail)
+  };
+}
+
+function fetchBlobWithProgress(url, onProgress) {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("GET", url, true);
+    xhr.responseType = "blob";
+    xhr.onprogress = (event) => {
+      onProgress?.(event.loaded, event.lengthComputable ? event.total : 0);
+    };
+    xhr.onload = () => {
+      if ((xhr.status >= 200 && xhr.status < 300) || xhr.status === 0) {
+        resolve(xhr.response);
+        return;
+      }
+      reject(new Error(`文件读取失败（${xhr.status}）`));
+    };
+    xhr.onerror = () => reject(new Error("网络连接中断"));
+    xhr.onabort = () => reject(new Error("下载已取消"));
+    xhr.send();
+  });
+}
+
 function setAdminMode(enabled) {
   state.isAdmin = enabled;
   writeAdminSession(enabled);
@@ -2124,36 +2202,56 @@ async function downloadResource(id) {
   }
 
   if (state.mode === "supabase" && resource.url) {
+    const progressToast = showProgressToast(
+      resource.chunked ? "正在下载分片" : "正在下载",
+      resource.name
+    );
     try {
-      showToast(
-        resource.chunked ? "正在合并文件" : "正在下载",
-        resource.compressed ? "下载完成后自动恢复原文件" : resource.name
-      );
       let downloadedBlob;
       if (resource.chunked) {
         const partBlobs = [];
-        for (const partPath of resource.chunkParts) {
-          const partResponse = await fetchWithTimeout(supabasePublicFileUrl(partPath), {}, 120000);
-          if (!partResponse.ok) {
-          throw new Error("文件读取失败");
-          }
-          partBlobs.push(await partResponse.blob());
+        for (let index = 0; index < resource.chunkParts.length; index += 1) {
+          const partPath = resource.chunkParts[index];
+          const partBlob = await fetchBlobWithProgress(
+            supabasePublicFileUrl(partPath),
+            (loaded, total) => {
+              const partProgress = total ? loaded / total : 0;
+              const overall = ((index + partProgress) / resource.chunkParts.length) * 100;
+              progressToast.update(
+                overall,
+                `分片 ${index + 1} / ${resource.chunkParts.length}${total ? ` · ${formatBytes(loaded)} / ${formatBytes(total)}` : ""}`
+              );
+            }
+          );
+          partBlobs.push(partBlob);
+          progressToast.update(
+            ((index + 1) / resource.chunkParts.length) * 100,
+            `已下载 ${index + 1} / ${resource.chunkParts.length} 个分片`
+          );
         }
         downloadedBlob = new Blob(partBlobs, {
           type: resource.compressed ? "application/gzip" : resource.originalMime
         });
       } else {
-        const response = await fetchWithTimeout(resource.url, {}, 120000);
-        if (!response.ok) {
-          throw new Error("文件读取失败");
-        }
-        downloadedBlob = await response.blob();
+        downloadedBlob = await fetchBlobWithProgress(resource.url, (loaded, total) => {
+          progressToast.update(
+            total ? (loaded / total) * 100 : 0,
+            total ? `${formatBytes(loaded)} / ${formatBytes(total)}` : `已下载 ${formatBytes(loaded)}`
+          );
+        });
       }
-      const originalBlob = resource.compressed ? await decompressBlob(downloadedBlob) : downloadedBlob;
+      let originalBlob = downloadedBlob;
+      if (resource.compressed) {
+        progressToast.update(100, "正在恢复原文件");
+        originalBlob = await decompressBlob(downloadedBlob);
+      }
       saveBlob(originalBlob, resource.originalName || resource.name);
-      showToast(resource.compressed ? "原文件已恢复" : "下载完成", resource.originalName || resource.name);
+      progressToast.complete(
+        resource.compressed ? "原文件已恢复" : "下载完成",
+        resource.originalName || resource.name
+      );
     } catch (error) {
-      showToast("下载失败", error.message || "无法恢复原文件", "error");
+      progressToast.fail("下载失败", error.message || "无法恢复原文件");
     }
     return;
   }
@@ -2164,13 +2262,19 @@ async function downloadResource(id) {
     return;
   }
 
-  const anchor = document.createElement("a");
-  anchor.href = url;
-  anchor.download = resource.name || "resource";
-  document.body.appendChild(anchor);
-  anchor.click();
-  anchor.remove();
-  showToast("已开始下载", resource.name);
+  const progressToast = showProgressToast("正在下载", resource.name);
+  try {
+    const blob = await fetchBlobWithProgress(url, (loaded, total) => {
+      progressToast.update(
+        total ? (loaded / total) * 100 : 0,
+        total ? `${formatBytes(loaded)} / ${formatBytes(total)}` : `已下载 ${formatBytes(loaded)}`
+      );
+    });
+    saveBlob(blob, resource.name || "resource");
+    progressToast.complete("下载完成", resource.name);
+  } catch (error) {
+    progressToast.fail("下载失败", error.message || "请稍后重试");
+  }
 }
 
 function setFilter(filter) {
