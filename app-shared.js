@@ -128,8 +128,6 @@ const state = {
 };
 
 const elements = {
-  modeBadges: document.querySelectorAll("[data-mode-badge]"),
-  modeSelects: document.querySelectorAll("[data-mode-select]"),
   adminButton: document.getElementById("adminButton"),
   adminButtonText: document.getElementById("adminButtonText"),
   dropZone: document.getElementById("dropZone"),
@@ -451,59 +449,14 @@ function submitAdmin(event) {
   setAdminMode(true);
 }
 
-function setStorageMode(mode) {
-  state.mode = mode;
-  updateStorageBadge(mode);
-}
-
-function updateStorageBadge(mode) {
-  const badges = [...elements.modeBadges];
-  const setBadge = (className, label, selectValue) => {
-    badges.forEach((badge) => {
-      const dot = badge.querySelector(".status-dot");
-      const select = badge.querySelector("[data-mode-select]");
-      if (dot) {
-        dot.className = `status-dot ${className}`.trim();
-      }
-      if (select) {
-        select.value = selectValue;
-      }
-      badge.setAttribute("aria-label", `当前${label}`);
-      badge.setAttribute("title", label);
-    });
-  };
-
-  if (mode === "server") {
-    setBadge("is-online", "在线", "online");
-    return;
-  }
-
-  if (mode === "supabase") {
-    setBadge("is-online", "在线", "online");
-    return;
-  }
-
-  if (mode === "local") {
-    setBadge("is-offline", "离线", "offline");
-    return;
-  }
-
-  if (mode === "supabase-offline") {
-    setBadge("is-offline", "重连中", "reconnecting");
-    return;
-  }
-
-  setBadge("is-error", "连接异常", "error");
-}
-
 async function detectStorageMode() {
   if (window.location.protocol === "file:") {
-    setStorageMode("local");
+    state.mode = "local";
     return;
   }
 
   if (SUPABASE_ENABLED && window.location.protocol === "https:") {
-    setStorageMode("supabase");
+    state.mode = "supabase";
     return;
   }
 
@@ -516,48 +469,10 @@ async function detectStorageMode() {
     if (payload.service !== "resource-hub") {
       throw new Error("unexpected service");
     }
-    setStorageMode("server");
+    state.mode = "server";
   } catch (error) {
-    setStorageMode(SUPABASE_ENABLED ? "supabase" : "local");
+    state.mode = SUPABASE_ENABLED ? "supabase" : "local";
   }
-}
-
-async function switchStorageMode(targetMode) {
-  if (state.activeUpload) {
-    showToast("上传进行中", "完成后再切换模式", "error");
-    updateStorageBadge(state.mode);
-    return;
-  }
-
-  if (targetMode === "offline") {
-    state.mode = "local";
-    state.cloudOffline = false;
-    updateStorageBadge("local");
-    state.selectedIds.clear();
-    state.page = 1;
-    await loadResources();
-    showToast("已切换到离线模式", "仅显示当前环境中的文件");
-    return;
-  }
-
-  if (!SUPABASE_ENABLED) {
-    showToast("无法切换在线", "在线服务暂不可用", "error");
-    updateStorageBadge(state.mode);
-    return;
-  }
-
-  state.selectedIds.clear();
-  state.page = 1;
-  state.mode = "supabase";
-  state.cloudOffline = false;
-  updateStorageBadge("supabase");
-  await loadSupabasePage();
-  if (state.cloudOffline) {
-    showToast("在线连接失败", "仍显示临时文件", "error");
-    return;
-  }
-  await syncPendingCloudUploads();
-  showToast("已切换到在线模式", "正在读取共享文件");
 }
 
 async function fetchWithTimeout(url, options = {}, timeout = 8000) {
@@ -776,7 +691,6 @@ async function loadSupabasePage() {
       // Ignore cache write failures.
     }
     state.selectedIds.clear();
-    updateStorageBadge("supabase");
     renderAll();
   } catch (error) {
     state.cloudOffline = true;
@@ -784,7 +698,6 @@ async function loadSupabasePage() {
       .map(normalizeResource)
       .filter(Boolean);
     state.resources = localResources;
-    updateStorageBadge("supabase-offline");
     renderAll();
     showToast("连接中断", "正在自动重试", "error");
     state.cloudRetryTimer = window.setTimeout(loadSupabasePage, 60000);
@@ -852,7 +765,6 @@ async function loadResources() {
     state.selectedIds.clear();
     state.page = 1;
     if (state.mode === "supabase") {
-      updateStorageBadge("supabase");
     }
     renderAll();
   } catch (error) {
@@ -863,7 +775,6 @@ async function loadResources() {
           .map(normalizeResource)
           .filter(Boolean);
         state.selectedIds.clear();
-        updateStorageBadge("supabase-offline");
         renderAll();
         showToast("连接中断", "正在自动重试", "error");
         state.cloudRetryTimer = window.setTimeout(loadResources, 60000);
@@ -2278,9 +2189,6 @@ function setFilter(filter) {
 }
 
 function bindEvents() {
-  elements.modeSelects.forEach((select) => {
-    select.addEventListener("change", () => switchStorageMode(select.value));
-  });
   elements.adminButton.addEventListener("click", () => {
     if (state.isAdmin) {
       setAdminMode(false);
@@ -2485,7 +2393,7 @@ async function init() {
   try {
     await openDatabase();
   } catch (error) {
-    setStorageMode("error");
+    state.mode = "error";
     showToast("存储不可用", error.message || "无法初始化存储", "error");
     return;
   }
