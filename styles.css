@@ -177,11 +177,6 @@ select:focus-visible,
   box-shadow: 0 0 0 4px rgba(63, 197, 138, 0.12);
 }
 
-.status-dot.is-local {
-  background: #4e9aff;
-  box-shadow: 0 0 0 4px rgba(78, 154, 255, 0.12);
-}
-
 .status-dot.is-offline {
   background: #d0a736;
   box-shadow: 0 0 0 4px rgba(208, 167, 54, 0.12);
