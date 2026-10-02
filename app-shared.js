@@ -134,6 +134,7 @@ const state = {
   selectedIds: new Set(),
   pendingDeleteIds: [],
   previewId: "",
+  previewResource: null,
   previewObjectUrl: "",
   previewReading: false,
   readerId: "",
@@ -511,7 +512,9 @@ async function loadTextDocumentPreview(resource) {
     if (!elements.previewArea.contains(target)) {
       return;
     }
-    target.textContent = text;
+    target.textContent = text.length > READER_PAGE_SIZE
+      ? `${text.slice(0, READER_PAGE_SIZE)}\n\n…内容较长，点击上方「阅读模式」分页查看完整内容。`
+      : text;
   } catch (error) {
     if (elements.previewArea.contains(target)) {
       target.textContent = error.message || "文档读取失败";
@@ -2811,6 +2814,13 @@ function syncPreviewReadingButton() {
 }
 
 function togglePreviewReading() {
+  const resource = state.previewResource || findResource(state.previewId);
+  if (resource && isTextReaderResource(resource)) {
+    const id = resource.id;
+    closePreview();
+    openReader(id);
+    return;
+  }
   state.previewReading = !state.previewReading;
   syncPreviewReadingButton();
 }
@@ -2886,8 +2896,10 @@ async function openPreview(id) {
   resource = await preparePreviewResource(resource);
   if (!resource) {
     state.previewId = "";
+    state.previewResource = null;
     return;
   }
+  state.previewResource = resource;
   elements.previewTitle.textContent = resource.originalName || resource.name;
   const url = getObjectUrl(resource);
   let preview = "";
@@ -3035,6 +3047,7 @@ function closePreview() {
   elements.previewModal.classList.remove("is-expanded", "is-reading", "is-code-preview");
   elements.previewModal.setAttribute("aria-hidden", "true");
   state.previewId = "";
+  state.previewResource = null;
   if (state.previewObjectUrl) {
     URL.revokeObjectURL(state.previewObjectUrl);
     state.previewObjectUrl = "";
@@ -3219,11 +3232,6 @@ function closeReader() {
 }
 
 function openResourceDefault(id) {
-  const resource = findResource(id);
-  if (resource && isTextReaderResource(resource)) {
-    openReader(id);
-    return;
-  }
   openPreview(id);
 }
 
