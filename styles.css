@@ -1413,6 +1413,54 @@ select:focus-visible,
   color: #ff7b81;
 }
 
+.toast--progress {
+  align-items: flex-start;
+}
+
+.toast .toast__progress-content {
+  display: grid;
+  gap: 8px;
+  width: 100%;
+  min-width: 0;
+}
+
+.toast__progress-copy {
+  display: grid;
+  gap: 3px;
+}
+
+.toast__progress-track {
+  overflow: hidden;
+  height: 6px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.15);
+}
+
+.toast__progress-track > span {
+  display: block;
+  width: 0;
+  height: 100%;
+  border-radius: inherit;
+  background: #53d49a;
+  transition: width 150ms ease;
+}
+
+.toast--error .toast__progress-track > span {
+  background: #ff7b81;
+}
+
+.toast .toast__progress-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.toast__progress-meta > span {
+  color: rgba(255, 255, 255, 0.64);
+  font-size: 10px;
+}
+
 .toast div {
   display: grid;
   gap: 3px;
