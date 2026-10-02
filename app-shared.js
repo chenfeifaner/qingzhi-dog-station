@@ -135,6 +135,7 @@ const state = {
   pendingDeleteIds: [],
   previewId: "",
   previewResource: null,
+  previewHandoff: false,
   previewObjectUrl: "",
   previewReading: false,
   readerId: "",
@@ -143,6 +144,7 @@ const state = {
   readerFontScale: 1,
   readerPages: [],
   readerPageIndex: 0,
+  textDocumentCache: new Map(),
   audioPlaylist: [],
   audioIndex: -1,
   audioMode: "sequence",
@@ -509,6 +511,10 @@ async function loadTextDocumentPreview(resource) {
   }
   try {
     const text = await readTextDocument(resource);
+    state.textDocumentCache.set(resource.id, text);
+    while (state.textDocumentCache.size > 5) {
+      state.textDocumentCache.delete(state.textDocumentCache.keys().next().value);
+    }
     if (!elements.previewArea.contains(target)) {
       return;
     }
@@ -2817,8 +2823,14 @@ function togglePreviewReading() {
   const resource = state.previewResource || findResource(state.previewId);
   if (resource && isTextReaderResource(resource)) {
     const id = resource.id;
+    const cachedText = state.textDocumentCache.get(id);
+    const prepared = state.previewResource;
+    state.previewHandoff = true;
     closePreview();
-    openReader(id);
+    openReader(id, {
+      text: typeof cachedText === "string" ? cachedText : undefined,
+      resource: prepared
+    });
     return;
   }
   state.previewReading = !state.previewReading;
@@ -3048,10 +3060,11 @@ function closePreview() {
   elements.previewModal.setAttribute("aria-hidden", "true");
   state.previewId = "";
   state.previewResource = null;
-  if (state.previewObjectUrl) {
+  if (state.previewObjectUrl && !state.previewHandoff) {
     URL.revokeObjectURL(state.previewObjectUrl);
     state.previewObjectUrl = "";
   }
+  state.previewHandoff = false;
   syncModalOpenState();
 }
 
@@ -3169,7 +3182,7 @@ async function toggleReaderFullscreen() {
   syncReaderFullscreenButton();
 }
 
-async function openReader(id) {
+async function openReader(id, options = {}) {
   const resource = findResource(id);
   if (!resource) {
     return;
@@ -3186,6 +3199,12 @@ async function openReader(id) {
   elements.readerView.setAttribute("aria-hidden", "false");
   document.body.classList.add("modal-open");
   syncReaderControls();
+
+  if (typeof options.text === "string") {
+    state.readerResource = options.resource || resource;
+    setReaderDocument(options.text);
+    return;
+  }
 
   const prepared = await preparePreviewResource(resource, "正在准备文档阅读");
   if (state.readerId !== id) {
