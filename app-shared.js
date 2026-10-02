@@ -409,11 +409,11 @@ function setAdminMode(enabled) {
   state.isAdmin = enabled;
   writeAdminSession(enabled);
   elements.adminButtonText.textContent = enabled ? "退出管理" : "管理员";
-  elements.adminButton.setAttribute("aria-label", enabled ? "退出管理员模式" : "管理员模式");
+  elements.adminButton.setAttribute("aria-label", enabled ? "退出管理模式" : "管理员模式");
   elements.adminButton.classList.toggle("is-active", enabled);
   state.selectedIds.clear();
   renderResources();
-  showToast(enabled ? "管理员模式已开启" : "管理员模式已退出", enabled ? "现在可以编辑和删除资源" : "当前为访客模式");
+  showToast(enabled ? "管理模式已开启" : "管理模式已退出", enabled ? "现在可以编辑和删除文件" : "当前为访客模式");
 }
 
 function openAdminModal() {
@@ -465,26 +465,26 @@ function updateStorageBadge(mode) {
   };
 
   if (mode === "server") {
-    setBadge("is-online", "本地服务已连接");
+    setBadge("is-online", "在线");
     return;
   }
 
   if (mode === "supabase") {
-    setBadge("is-online", "云端动态模式");
+    setBadge("is-online", "在线");
     return;
   }
 
   if (mode === "local") {
-    setBadge("is-local", "浏览器本地模式");
+    setBadge("is-local", "本机");
     return;
   }
 
   if (mode === "supabase-offline") {
-    setBadge("is-offline", "云端离线 · 本地暂存");
+    setBadge("is-offline", "重连中");
     return;
   }
 
-  setBadge("is-error", "存储连接异常");
+  setBadge("is-error", "连接异常");
 }
 
 async function detectStorageMode() {
@@ -570,7 +570,7 @@ function startSupabaseKeepAlive() {
 
 function openDatabase() {
   if (!("indexedDB" in window)) {
-    return Promise.reject(new Error("当前浏览器不支持 IndexedDB"));
+    return Promise.reject(new Error("当前环境不支持本机存储"));
   }
   if (state.db) {
     return Promise.resolve(state.db);
@@ -588,7 +588,7 @@ function openDatabase() {
       state.db = request.result;
       resolve(state.db);
     };
-    request.onerror = () => reject(request.error || new Error("无法打开本地数据库"));
+    request.onerror = () => reject(request.error || new Error("无法打开存储"));
   });
 }
 
@@ -598,7 +598,7 @@ function databaseRequest(mode, operation) {
     const store = transaction.objectStore(DB_STORE);
     const request = operation(store);
     request.onsuccess = () => resolve(request.result);
-    request.onerror = () => reject(request.error || new Error("本地存储操作失败"));
+    request.onerror = () => reject(request.error || new Error("存储操作失败"));
   }));
 }
 
@@ -730,7 +730,7 @@ async function loadSupabasePage() {
     state.resources = localResources;
     updateStorageBadge("supabase-offline");
     renderAll();
-    showToast("云端暂时不可用", "已保留云端模式，当前显示本地暂存并自动重试", "error");
+    showToast("连接中断", "正在自动重试", "error");
     state.cloudRetryTimer = window.setTimeout(loadSupabasePage, 60000);
   }
 }
@@ -785,7 +785,7 @@ async function loadResources() {
     } else if (state.mode === "local") {
       resources = await getAllLocalResources();
     } else {
-      throw new Error("存储服务不可用");
+      throw new Error("存储暂不可用");
     }
 
     state.resources = resources
@@ -805,7 +805,7 @@ async function loadResources() {
         state.selectedIds.clear();
         updateStorageBadge("supabase-offline");
         renderAll();
-        showToast("云端暂时不可用", "已保留云端模式，当前显示本地暂存并自动重试", "error");
+        showToast("连接中断", "正在自动重试", "error");
         state.cloudRetryTimer = window.setTimeout(loadResources, 60000);
         return;
       } catch (fallbackError) {
@@ -1271,7 +1271,7 @@ function addFilesDirect(fileList) {
   }
   if (skipped) {
     const detail = state.mode === "local" && files.some((file) => file.size > LOCAL_LIMIT)
-      ? "超出本地模式大小限制的文件已跳过"
+      ? "超出大小限制的文件已跳过"
       : "重复、空文件或超出大小限制的文件已跳过";
     showToast("部分文件未加入", detail, "error");
   }
@@ -1279,7 +1279,7 @@ function addFilesDirect(fileList) {
 
 async function addFromClipboard() {
   if (!navigator.clipboard || typeof navigator.clipboard.read !== "function") {
-    showToast("剪贴板不可用", "请使用支持剪贴板读取的现代浏览器，或通过本地服务打开页面", "error");
+    showToast("剪贴板不可用", "请允许浏览器访问剪贴板后重试", "error");
     return;
   }
 
@@ -1474,7 +1474,7 @@ async function uploadLocally(item, metadata, options = {}) {
 
 async function gzipFile(file) {
   if (typeof CompressionStream !== "function") {
-    throw new Error("当前浏览器不支持无损压缩");
+    throw new Error("当前环境不支持文件压缩");
   }
   const compressedStream = file.stream().pipeThrough(new CompressionStream("gzip"));
   const compressedBlob = await new Response(compressedStream).blob();
@@ -1504,7 +1504,7 @@ async function prepareSupabaseUpload(file) {
       return original;
     }
     if (compressedFile.size > SUPABASE_UPLOAD_LIMIT) {
-      throw new Error(`压缩后仍为 ${formatBytes(compressedFile.size)}，超过 100 MB 云端上限`);
+      throw new Error(`压缩后仍为 ${formatBytes(compressedFile.size)}，超过 100 MB 上限`);
     }
     return {
       blob: compressedFile,
@@ -1542,7 +1542,7 @@ function uploadBlobWithRetry(blob, uploadUrl, onProgress, attempts = 3) {
           resolve();
           return;
         }
-        retry(new Error(`分片上传失败（${xhr.status}）`));
+        retry(new Error(`上传失败（${xhr.status}）`));
       };
       xhr.send(blob);
 
@@ -1565,7 +1565,7 @@ async function verifySupabaseObject(objectPath) {
     cache: "no-store"
   }, 15000);
   if (!response.ok && response.status !== 206) {
-    throw new Error("云端分片校验失败");
+    throw new Error("文件校验失败");
   }
 }
 
@@ -1680,7 +1680,7 @@ async function uploadOne(item, metadata) {
         renderAll();
       } catch (localError) {
         localRecord = null;
-        showToast("本地暂存空间不足", "将直接进行云端分片上传", "error");
+        showToast("上传准备失败", "将直接上传文件", "error");
       }
       resource = await uploadToSupabase(item, metadata);
       if (localRecord) {
@@ -1753,7 +1753,7 @@ async function syncPendingCloudUploads() {
     } else {
       renderAll();
     }
-    showToast("本地暂存已同步到云端", `成功上传 ${syncedCount} 个资源`);
+    showToast("同步完成", `成功上传 ${syncedCount} 个资源`);
   }
 }
 
@@ -1764,7 +1764,7 @@ async function startUpload() {
 
   const pending = state.queue.filter((item) => item.status === "ready" || item.status === "error");
   if (!pending.length) {
-    showToast("没有待上传文件", "请先添加新的资源", "error");
+    showToast("没有待上传文件", "请先选择文件", "error");
     return;
   }
 
@@ -1820,7 +1820,7 @@ function openPreview(id) {
       <div class="preview-placeholder">
         <span data-icon="${escapeHTML(typeIcon(resource.kind))}"></span>
         <strong>分片资源</strong>
-        <span>文件保存在多个云端分片中，下载时会自动合并并恢复。</span>
+        <span>文件分片保存，下载时会自动合并并恢复。</span>
       </div>
     `;
   } else if (resource.kind === "image" && url) {
@@ -1845,7 +1845,7 @@ function openPreview(id) {
   const tags = resource.tags.length ? resource.tags.join("、") : "无标签";
   elements.previewMeta.innerHTML = `
     <div class="preview-meta__item"><span>文件大小</span><strong>${escapeHTML(formatBytes(resource.size))}</strong></div>
-    <div class="preview-meta__item"><span>存储方式</span><strong>${resource.storage === "browser" ? "本地暂存" : resource.chunked ? "云端分片" : "云端文件"}</strong></div>
+    <div class="preview-meta__item"><span>存储方式</span><strong>${resource.storage === "browser" ? "临时文件" : resource.chunked ? "分片文件" : "已上传"}</strong></div>
     <div class="preview-meta__item"><span>标签</span><strong title="${escapeHTML(tags)}">${escapeHTML(tags)}</strong></div>
     <div class="preview-meta__item"><span>上传时间</span><strong>${escapeHTML(formatDate(resource.uploadedAt))}</strong></div>
     <div class="preview-meta__item"><span>文件类型</span><strong>${escapeHTML(typeLabel(resource.kind))}</strong></div>
@@ -1894,7 +1894,7 @@ async function copyText(value) {
 async function copyResourceLink() {
   const resource = findResource(state.previewId);
   if (!resource || !["server", "supabase"].includes(state.mode) || !resource.url) {
-    showToast("当前资源没有可复制的链接", "浏览器本地模式不提供公开链接", "error");
+    showToast("无法复制链接", "请使用下载按钮保存文件", "error");
     return;
   }
   try {
@@ -2111,7 +2111,7 @@ async function deleteResources(ids) {
 
 async function decompressBlob(blob) {
   if (typeof DecompressionStream !== "function") {
-    throw new Error("当前浏览器不支持恢复压缩文件");
+    throw new Error("当前环境不支持文件恢复");
   }
   const decompressedStream = blob.stream().pipeThrough(new DecompressionStream("gzip"));
   return new Response(decompressedStream).blob();
@@ -2137,8 +2137,8 @@ async function downloadResource(id) {
   if (state.mode === "supabase" && resource.url) {
     try {
       showToast(
-        resource.chunked ? "正在合并分片" : "正在下载到本地",
-        resource.compressed ? "下载前会自动恢复原文件" : resource.name
+        resource.chunked ? "正在合并文件" : "正在下载",
+        resource.compressed ? "下载完成后自动恢复原文件" : resource.name
       );
       let downloadedBlob;
       if (resource.chunked) {
@@ -2146,7 +2146,7 @@ async function downloadResource(id) {
         for (const partPath of resource.chunkParts) {
           const partResponse = await fetchWithTimeout(supabasePublicFileUrl(partPath), {}, 120000);
           if (!partResponse.ok) {
-            throw new Error("云端分片读取失败");
+          throw new Error("文件读取失败");
           }
           partBlobs.push(await partResponse.blob());
         }
@@ -2156,13 +2156,13 @@ async function downloadResource(id) {
       } else {
         const response = await fetchWithTimeout(resource.url, {}, 120000);
         if (!response.ok) {
-          throw new Error("云端文件读取失败");
+          throw new Error("文件读取失败");
         }
         downloadedBlob = await response.blob();
       }
       const originalBlob = resource.compressed ? await decompressBlob(downloadedBlob) : downloadedBlob;
       saveBlob(originalBlob, resource.originalName || resource.name);
-      showToast(resource.compressed ? "原文件已恢复并保存" : "文件已保存到本地", resource.originalName || resource.name);
+      showToast(resource.compressed ? "原文件已恢复" : "下载完成", resource.originalName || resource.name);
     } catch (error) {
       showToast("下载失败", error.message || "无法恢复原文件", "error");
     }
@@ -2397,7 +2397,7 @@ function bindEvents() {
 async function init() {
   hydrateIcons();
   elements.adminButtonText.textContent = state.isAdmin ? "退出管理" : "管理员";
-  elements.adminButton.setAttribute("aria-label", state.isAdmin ? "退出管理员模式" : "管理员模式");
+  elements.adminButton.setAttribute("aria-label", state.isAdmin ? "退出管理模式" : "管理员模式");
   elements.adminButton.classList.toggle("is-active", state.isAdmin);
   bindEvents();
   await detectStorageMode();
@@ -2405,7 +2405,7 @@ async function init() {
     await openDatabase();
   } catch (error) {
     setStorageMode("error");
-    showToast("本地存储不可用", error.message || "浏览器拒绝创建数据库", "error");
+    showToast("存储不可用", error.message || "无法初始化存储", "error");
     return;
   }
   await loadResources();
