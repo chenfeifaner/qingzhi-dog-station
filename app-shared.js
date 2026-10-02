@@ -42,7 +42,7 @@ const DB_STORE = "resources";
 const RESOURCE_CACHE_KEY = "qingzhi_resource_cache_v1";
 const RESOURCE_CACHE_LIMIT = 300;
 const SERVER_LIMIT = 250 * 1024 * 1024;
-const LOCAL_LIMIT = 100 * 1024 * 1024;
+const LOCAL_LIMIT = 2 * 1024 * 1024 * 1024;
 const SUPABASE_SOURCE_LIMIT = 2 * 1024 * 1024 * 1024;
 const SUPABASE_UPLOAD_LIMIT = 100 * 1024 * 1024;
 const ADMIN_PASSWORD = "我是青雀大人的狗";
@@ -1533,7 +1533,12 @@ async function uploadLocally(item, metadata, options = {}) {
   };
 
   updateQueueItem(item.id, { progress: 42 });
-  await putLocalResource(resource);
+  try {
+    await putLocalResource(resource);
+  } catch (storageError) {
+    resource.sessionOnly = true;
+    showToast("本地存储空间不足", "文件已保留在当前页面，可直接上传云端", "error");
+  }
   updateQueueItem(item.id, { progress: 100 });
   return resource;
 }
