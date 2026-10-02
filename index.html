@@ -10,7 +10,7 @@
   <link rel="preconnect" href="https://vdihfdrylanbfyrhvnnl.supabase.co" crossorigin>
   <link rel="dns-prefetch" href="https://vdihfdrylanbfyrhvnnl.supabase.co">
   <link rel="preload" as="image" href="assets/qingque-bg.jpg" fetchpriority="high">
-  <link rel="stylesheet" href="styles.css?v=ui-preview-10">
+  <link rel="stylesheet" href="styles.css?v=ui-preview-11">
 </head>
 <body>
   <div class="app-shell">
@@ -24,10 +24,11 @@
           </span>
         </a>
         <div class="topbar__actions">
-          <div class="mode-badge" data-mode-badge>
+          <button class="mode-badge" type="button" data-mode-badge data-mode-toggle aria-label="当前在线，点击切换模式">
             <span class="status-dot"></span>
-            <span>正在连接</span>
-          </div>
+            <span class="mode-badge__label">正在连接</span>
+            <span data-icon="refresh-cw"></span>
+          </button>
           <button class="button button-secondary" id="adminButton" type="button" aria-label="管理员模式">
             <span data-icon="shield"></span>
             <span id="adminButtonText">管理员</span>
@@ -47,10 +48,11 @@
               <h2>上传资源</h2>
             </div>
             <div class="upload-head-meta">
-              <div class="mode-badge mobile-mode-badge" data-mode-badge>
+              <button class="mode-badge mobile-mode-badge" type="button" data-mode-badge data-mode-toggle aria-label="当前在线，点击切换模式">
                 <span class="status-dot"></span>
-                <span>正在连接</span>
-              </div>
+                <span class="mode-badge__label">正在连接</span>
+                <span data-icon="refresh-cw"></span>
+              </button>
             </div>
           </div>
 
@@ -305,6 +307,6 @@
 
   <div class="toast-region" id="toastRegion" aria-live="polite" aria-atomic="true"></div>
 
-  <script src="app-shared.js?v=ui-preview-10" defer></script>
+  <script src="app-shared.js?v=ui-preview-11" defer></script>
 </body>
 </html>
