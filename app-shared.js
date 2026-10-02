@@ -2497,9 +2497,133 @@ function saveBlob(blob, filename) {
   window.setTimeout(() => URL.revokeObjectURL(objectUrl), 12000);
 }
 
+function findZipEndRecord(view) {
+  const minimumOffset = Math.max(0, view.byteLength - 65557);
+  for (let offset = view.byteLength - 22; offset >= minimumOffset; offset -= 1) {
+    if (view.getUint32(offset, true) === 0x06054b50) {
+      return offset;
+    }
+  }
+  return -1;
+}
+
+async function extractStoredZip(blob) {
+  const buffer = await blob.arrayBuffer();
+  const view = new DataView(buffer);
+  const endOffset = findZipEndRecord(view);
+  if (endOffset < 0) {
+    throw new Error("压缩包结构无效");
+  }
+
+  const entryCount = view.getUint16(endOffset + 10, true);
+  const centralOffset = view.getUint32(endOffset + 16, true);
+  const decoder = new TextDecoder();
+  const entries = [];
+  let offset = centralOffset;
+
+  for (let index = 0; index < entryCount; index += 1) {
+    if (view.getUint32(offset, true) !== 0x02014b50) {
+      throw new Error("压缩包目录损坏");
+    }
+    const method = view.getUint16(offset + 10, true);
+    const compressedSize = view.getUint32(offset + 20, true);
+    const nameLength = view.getUint16(offset + 28, true);
+    const extraLength = view.getUint16(offset + 30, true);
+    const commentLength = view.getUint16(offset + 32, true);
+    const localOffset = view.getUint32(offset + 42, true);
+    const name = decoder.decode(new Uint8Array(buffer, offset + 46, nameLength));
+
+    if (method !== 0) {
+      throw new Error("仅支持恢复由本站打包的文件夹");
+    }
+    if (!name.endsWith("/")) {
+      if (view.getUint32(localOffset, true) !== 0x04034b50) {
+        throw new Error("压缩包文件头损坏");
+      }
+      const localNameLength = view.getUint16(localOffset + 26, true);
+      const localExtraLength = view.getUint16(localOffset + 28, true);
+      const dataStart = localOffset + 30 + localNameLength + localExtraLength;
+      entries.push({
+        name,
+        blob: blob.slice(dataStart, dataStart + compressedSize)
+      });
+    }
+    offset += 46 + nameLength + extraLength + commentLength;
+  }
+  return entries;
+}
+
+async function writeZipEntriesToDirectory(entries, directoryHandle, onProgress) {
+  for (let index = 0; index < entries.length; index += 1) {
+    const entry = entries[index];
+    const segments = entry.name.split("/").filter(Boolean);
+    const fileName = segments.pop();
+    if (!fileName) {
+      continue;
+    }
+    let currentDirectory = directoryHandle;
+    for (const segment of segments) {
+      currentDirectory = await currentDirectory.getDirectoryHandle(segment, { create: true });
+    }
+    const fileHandle = await currentDirectory.getFileHandle(fileName, { create: true });
+    const writable = await fileHandle.createWritable();
+    await writable.write(entry.blob);
+    await writable.close();
+    onProgress?.((index + 1) / entries.length, `正在写入 ${index + 1} / ${entries.length}`);
+  }
+}
+
+async function downloadFolderResource(resource, url, directoryHandle = null) {
+  const progressToast = showProgressToast("正在下载文件夹", resource.name);
+  try {
+    const archiveBlob = await fetchBlobWithProgress(url, (loaded, total) => {
+      progressToast.update(
+        total ? Math.min(75, (loaded / total) * 75) : 0,
+        total ? `${formatBytes(loaded)} / ${formatBytes(total)}` : `已下载 ${formatBytes(loaded)}`
+      );
+    });
+    progressToast.update(78, "正在解析文件夹");
+    const entries = await extractStoredZip(archiveBlob);
+    if (!entries.length) {
+      throw new Error("文件夹内容为空");
+    }
+    if (directoryHandle) {
+      await writeZipEntriesToDirectory(entries, directoryHandle, (progress, detail) => {
+        progressToast.update(78 + progress * 22, detail);
+      });
+      progressToast.complete("文件夹已恢复", resource.name);
+    } else {
+      saveBlob(archiveBlob, resource.name || "folder.zip");
+      progressToast.complete("文件夹已下载", "浏览器不支持自动写入目录，已保存压缩包");
+    }
+  } catch (error) {
+    progressToast.fail("文件夹下载失败", error.message || "请稍后重试");
+  }
+}
+
 async function downloadResource(id) {
   const resource = findResource(id);
   if (!resource) {
+    return;
+  }
+
+  if (resource.kind === "folder") {
+    const folderUrl = resource.url || getObjectUrl(resource);
+    if (!folderUrl) {
+      showToast("无法下载", "文件夹地址不可用", "error");
+      return;
+    }
+    let directoryHandle = null;
+    if (typeof window.showDirectoryPicker === "function") {
+      try {
+        directoryHandle = await window.showDirectoryPicker({ mode: "readwrite" });
+      } catch (error) {
+        if (error?.name === "AbortError") {
+          return;
+        }
+      }
+    }
+    await downloadFolderResource(resource, folderUrl, directoryHandle);
     return;
   }
 
