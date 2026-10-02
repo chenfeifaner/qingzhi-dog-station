@@ -1,5 +1,6 @@
 const ICONS = {
   "archive": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="5" x="2" y="3" rx="1"/><path d="M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8"/><path d="M10 12h4"/></svg>',
+  "book-open": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M12 7v14"/><path d="M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"/></svg>',
   "check-circle": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M21.801 10A10 10 0 1 1 17 3.335"/><path d="m9 11 3 3L22 4"/></svg>',
   "chevron-left": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>',
   "chevron-right": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>',
@@ -16,6 +17,8 @@ const ICONS = {
   "folder-tree": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10a1 1 0 0 0 1-1V6a1 1 0 0 0-1-1h-2.5a1 1 0 0 1-.8-.4l-.9-1.2A1 1 0 0 0 15 3h-4a1 1 0 0 0-1 1v5a1 1 0 0 0 1 1z"/><path d="M20 21a1 1 0 0 0 1-1v-3a1 1 0 0 0-1-1h-2.5a1 1 0 0 1-.8-.4l-.9-1.2a1 1 0 0 0-.8-.4h-4a1 1 0 0 0-1 1v5a1 1 0 0 0 1 1z"/><path d="M3 5a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h5"/><path d="M6 5H3"/></svg>',
   "image": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg>',
   "music": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>',
+  "maximize": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3"/><path d="M21 8V5a2 2 0 0 0-2-2h-3"/><path d="M3 16v3a2 2 0 0 0 2 2h3"/><path d="M16 21h3a2 2 0 0 0 2-2v-3"/></svg>',
+  "minimize": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3v3a2 2 0 0 1-2 2H3"/><path d="M21 8h-3a2 2 0 0 1-2-2V3"/><path d="M3 16h3a2 2 0 0 1 2 2v3"/><path d="M16 21v-3a2 2 0 0 1 2-2h3"/></svg>',
   "package-open": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22v-9"/><path d="M15.17 2.21 12 5.38 8.83 2.21 3.77 5.25A2 2 0 0 0 2.72 7v10a2 2 0 0 0 1.05 1.76l7 4A2 2 0 0 0 12 22a2 2 0 0 0 1.23-.24l7-4A2 2 0 0 0 21.28 17V7a2 2 0 0 0-1.05-1.75Z"/><path d="m7 8 5 3 5-3"/><path d="m7 13 5 3 5-3"/></svg>',
   "pencil": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"/><path d="m15 5 4 4"/></svg>',
   "plus": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg>',
@@ -130,6 +133,7 @@ const state = {
   pendingDeleteIds: [],
   previewId: "",
   previewObjectUrl: "",
+  previewReading: false,
   audioPlaylist: [],
   audioIndex: -1,
   audioMode: "sequence",
@@ -184,6 +188,9 @@ const elements = {
   previewTitle: document.getElementById("previewTitle"),
   previewArea: document.getElementById("previewArea"),
   previewMeta: document.getElementById("previewMeta"),
+  previewPanel: document.querySelector("#previewModal .modal__panel--preview"),
+  previewReadButton: document.getElementById("previewReadButton"),
+  previewFullscreenButton: document.getElementById("previewFullscreenButton"),
   previewDownloadButton: document.getElementById("previewDownloadButton"),
   copyLinkButton: document.getElementById("copyLinkButton"),
   audioRestoreButton: document.getElementById("audioRestoreButton"),
@@ -476,10 +483,7 @@ async function loadTextDocumentPreview(resource) {
     if (!elements.previewArea.contains(target)) {
       return;
     }
-    const maxCharacters = 1500000;
-    target.textContent = text.length > maxCharacters
-      ? `${text.slice(0, maxCharacters)}\n\n…内容过长，已截断显示`
-      : text;
+    target.textContent = text;
   } catch (error) {
     if (elements.previewArea.contains(target)) {
       target.textContent = error.message || "文档读取失败";
@@ -2698,6 +2702,80 @@ function setupAudioPlayer() {
   hydratePlaylistCovers();
 }
 
+function supportsPreviewFullscreen() {
+  return Boolean(
+    document.fullscreenEnabled
+    && elements.previewPanel
+    && typeof elements.previewPanel.requestFullscreen === "function"
+  );
+}
+
+function isPreviewReadingSupported(resource) {
+  if (!resource) {
+    return false;
+  }
+  if (isPdf(resource)) {
+    return true;
+  }
+  const documentType = getDocumentPreviewType(resource);
+  return documentType === "text" || documentType === "office";
+}
+
+function syncPreviewFullscreenButton() {
+  if (!elements.previewFullscreenButton) {
+    return;
+  }
+  const active = document.fullscreenElement === elements.previewPanel
+    || elements.previewModal.classList.contains("is-expanded");
+  elements.previewFullscreenButton.setAttribute("aria-pressed", String(active));
+  elements.previewFullscreenButton.setAttribute("aria-label", active ? "退出全屏" : "全屏显示");
+  elements.previewFullscreenButton.title = active ? "退出全屏" : "全屏显示";
+  const iconNode = elements.previewFullscreenButton.querySelector("[data-icon]");
+  if (iconNode) {
+    const name = active ? "minimize" : "maximize";
+    iconNode.dataset.icon = name;
+    iconNode.innerHTML = icon(name);
+  }
+}
+
+function syncPreviewReadingButton() {
+  const active = Boolean(state.previewReading);
+  elements.previewModal.classList.toggle("is-reading", active);
+  if (!elements.previewReadButton) {
+    return;
+  }
+  elements.previewReadButton.setAttribute("aria-pressed", String(active));
+  elements.previewReadButton.setAttribute("aria-label", active ? "退出阅读模式" : "阅读模式");
+  elements.previewReadButton.title = active ? "退出阅读模式" : "阅读模式";
+}
+
+function togglePreviewReading() {
+  state.previewReading = !state.previewReading;
+  syncPreviewReadingButton();
+}
+
+async function togglePreviewFullscreen() {
+  const panel = elements.previewPanel;
+  if (!panel) {
+    return;
+  }
+  if (document.fullscreenElement === panel) {
+    await document.exitFullscreen();
+    return;
+  }
+  if (!supportsPreviewFullscreen()) {
+    elements.previewModal.classList.toggle("is-expanded");
+    syncPreviewFullscreenButton();
+    return;
+  }
+  try {
+    await panel.requestFullscreen();
+  } catch (error) {
+    elements.previewModal.classList.toggle("is-expanded");
+  }
+  syncPreviewFullscreenButton();
+}
+
 async function openPreview(id) {
   let resource = findResource(id);
   if (!resource) {
@@ -2847,6 +2925,11 @@ async function openPreview(id) {
     <div class="preview-meta__item"><span>简介</span><strong title="${escapeHTML(resource.description || "无")}">${escapeHTML(resource.description || "无")}</strong></div>
   `;
   hydrateIcons(elements.previewArea);
+  elements.previewReadButton.hidden = !isPreviewReadingSupported(resource);
+  elements.previewModal.classList.toggle("is-code-preview", resource.kind === "code");
+  elements.previewModal.classList.remove("is-expanded");
+  syncPreviewReadingButton();
+  syncPreviewFullscreenButton();
   elements.copyLinkButton.hidden = !["server", "supabase"].includes(state.mode) || !resource.url;
   elements.previewModal.classList.add("is-open");
   elements.previewModal.setAttribute("aria-hidden", "false");
@@ -2872,8 +2955,14 @@ function closePreview() {
   if (video) {
     video.pause();
   }
+  if (document.fullscreenElement === elements.previewPanel && typeof document.exitFullscreen === "function") {
+    document.exitFullscreen().catch(() => {
+      // Ignore if the browser has already left fullscreen.
+    });
+  }
   elements.previewArea.innerHTML = "";
   elements.previewModal.classList.remove("is-open");
+  elements.previewModal.classList.remove("is-expanded", "is-reading", "is-code-preview");
   elements.previewModal.setAttribute("aria-hidden", "true");
   state.previewId = "";
   if (state.previewObjectUrl) {
@@ -3529,6 +3618,11 @@ function bindEvents() {
       downloadResource(state.previewId);
     }
   });
+  elements.previewReadButton.addEventListener("click", togglePreviewReading);
+  elements.previewFullscreenButton.addEventListener("click", () => {
+    togglePreviewFullscreen();
+  });
+  document.addEventListener("fullscreenchange", syncPreviewFullscreenButton);
   elements.copyLinkButton.addEventListener("click", copyResourceLink);
   elements.editForm.addEventListener("submit", saveEdit);
   elements.confirmDeleteButton.addEventListener("click", () => {
@@ -3552,6 +3646,9 @@ function bindEvents() {
 
   document.addEventListener("keydown", (event) => {
     if (event.key !== "Escape") {
+      return;
+    }
+    if (document.fullscreenElement) {
       return;
     }
     if (elements.confirmModal.classList.contains("is-open")) {
