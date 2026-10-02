@@ -1261,7 +1261,7 @@ select:focus-visible,
   justify-items: center;
   gap: 12px;
   padding: 44px;
-  color: #ffffff;
+  color: var(--ink);
   text-align: center;
 }
 
@@ -1271,7 +1271,8 @@ select:focus-visible,
   width: 60px;
   height: 60px;
   border-radius: 8px;
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--blue-soft);
+  color: var(--blue);
 }
 
 .preview-placeholder [data-icon] svg {
@@ -1284,7 +1285,7 @@ select:focus-visible,
 }
 
 .preview-placeholder span {
-  color: rgba(255, 255, 255, 0.62);
+  color: var(--muted);
   font-size: 12px;
 }
 
