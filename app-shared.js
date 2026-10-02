@@ -8,6 +8,7 @@ const ICONS = {
   "code": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="m16 18 6-6-6-6"/><path d="m8 6-6 6 6 6"/></svg>',
   "copy": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>',
   "download": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/><path d="M12 15V3"/></svg>',
+  "eye-off": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M10.733 5.076A10.744 10.744 0 0 1 12 5c5 0 9 4 10 7a11.8 11.8 0 0 1-2.09 3.35"/><path d="M6.61 6.61A11.8 11.8 0 0 0 2 12c1 3 5 7 10 7a10.7 10.7 0 0 0 5.39-1.61"/><path d="M14.12 14.12a3 3 0 1 1-4.24-4.24"/><path d="m2 2 20 20"/></svg>',
   "eye": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0"/><circle cx="12" cy="12" r="3"/></svg>',
   "file": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/></svg>',
   "film": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M7 3v18"/><path d="M17 3v18"/><path d="M3 7.5h4"/><path d="M17 7.5h4"/><path d="M3 12h18"/><path d="M3 16.5h4"/><path d="M17 16.5h4"/></svg>',
@@ -185,6 +186,7 @@ const elements = {
   previewMeta: document.getElementById("previewMeta"),
   previewDownloadButton: document.getElementById("previewDownloadButton"),
   copyLinkButton: document.getElementById("copyLinkButton"),
+  audioRestoreButton: document.getElementById("audioRestoreButton"),
   adminModal: document.getElementById("adminModal"),
   adminForm: document.getElementById("adminForm"),
   adminStatus: document.getElementById("adminStatus"),
@@ -2548,6 +2550,9 @@ function renderAudioPlayer(resource) {
         <button class="icon-button" type="button" data-audio-next aria-label="下一首" title="下一首">
           <span data-icon="skip-forward"></span>
         </button>
+        <button class="icon-button audio-player__hide" type="button" data-audio-hide aria-label="隐藏播放器" title="隐藏播放器">
+          <span data-icon="eye-off"></span>
+        </button>
         <button class="icon-button audio-player__close" type="button" data-audio-close aria-label="关闭播放器" title="关闭播放器">
           <span data-icon="x"></span>
         </button>
@@ -2676,8 +2681,13 @@ function setupAudioPlayer() {
   player.querySelector("[data-audio-close]").addEventListener("click", () => {
     audio.pause();
     player.remove();
+    elements.audioRestoreButton.hidden = true;
     state.audioPlaylist = [];
     state.audioIndex = -1;
+  });
+  player.querySelector("[data-audio-hide]").addEventListener("click", () => {
+    player.classList.add("is-hidden");
+    elements.audioRestoreButton.hidden = false;
   });
   trackButtons.forEach((button) => {
     button.addEventListener("click", () => {
@@ -2748,6 +2758,7 @@ async function openPreview(id) {
   }
   if (resource.kind === "audio") {
     document.querySelectorAll(".audio-player.is-docked").forEach((player) => player.remove());
+    elements.audioRestoreButton.hidden = true;
   }
 
   if (resource.kind === "folder") {
@@ -2854,6 +2865,8 @@ function closePreview() {
     document.querySelectorAll(".audio-player.is-docked").forEach((player) => player.remove());
     document.body.appendChild(audioPlayer);
     audioPlayer.classList.add("is-docked");
+    audioPlayer.classList.remove("is-hidden");
+    elements.audioRestoreButton.hidden = true;
   }
   const video = elements.previewArea.querySelector("video");
   if (video) {
@@ -3350,6 +3363,15 @@ function setFilter(filter) {
 }
 
 function bindEvents() {
+  elements.audioRestoreButton.addEventListener("click", () => {
+    const player = document.querySelector(".audio-player.is-docked");
+    if (!player) {
+      elements.audioRestoreButton.hidden = true;
+      return;
+    }
+    player.classList.remove("is-hidden");
+    elements.audioRestoreButton.hidden = true;
+  });
   elements.adminButton.addEventListener("click", () => {
     if (state.isAdmin) {
       setAdminMode(false);
