@@ -2781,14 +2781,7 @@ function supportsPreviewFullscreen() {
 }
 
 function isPreviewReadingSupported(resource) {
-  if (!resource) {
-    return false;
-  }
-  if (isPdf(resource)) {
-    return true;
-  }
-  const documentType = getDocumentPreviewType(resource);
-  return documentType === "text" || documentType === "office";
+  return isTextReaderResource(resource);
 }
 
 function syncPreviewFullscreenButton() {
@@ -3069,7 +3062,7 @@ function closePreview() {
 }
 
 function isTextReaderResource(resource) {
-  if (!resource || !["document", "code"].includes(resource.kind)) {
+  if (!resource || resource.kind !== "document") {
     return false;
   }
   if (resource.compressed && resource.chunked) {
