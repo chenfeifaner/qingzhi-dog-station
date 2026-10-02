@@ -1266,6 +1266,118 @@ select:focus-visible,
   background: #ffffff;
 }
 
+.audio-player {
+  display: grid;
+  justify-items: center;
+  gap: 14px;
+  width: min(560px, 100%);
+  padding: 24px;
+}
+
+.audio-cover {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 156px;
+  height: 156px;
+  border: 12px solid rgba(24, 51, 46, 0.14);
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at center, #ddf3ea 0 12%, #1f8a70 13% 18%, #18332e 19% 100%);
+  color: #ffffff;
+  box-shadow: 0 16px 36px rgba(4, 31, 26, 0.22);
+  animation: audio-spin 8s linear infinite;
+  animation-play-state: paused;
+}
+
+.audio-cover::after {
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #ffffff;
+  content: "";
+}
+
+.audio-cover [data-icon] {
+  position: absolute;
+  top: 58%;
+  left: 50%;
+  color: rgba(255, 255, 255, 0.9);
+  transform: translate(-50%, -50%);
+}
+
+.audio-player.is-playing .audio-cover {
+  animation-play-state: running;
+}
+
+.audio-player__title {
+  max-width: 100%;
+  overflow: hidden;
+  font-size: 15px;
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.audio-player audio {
+  width: 100%;
+}
+
+.audio-player__controls {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.audio-playlist {
+  display: grid;
+  gap: 6px;
+  width: 100%;
+  max-height: 190px;
+  overflow-y: auto;
+}
+
+.audio-playlist__item {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  min-height: 40px;
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.62);
+  color: var(--ink-soft);
+  text-align: left;
+}
+
+.audio-playlist__item span {
+  color: var(--muted);
+  font-size: 11px;
+  text-align: center;
+}
+
+.audio-playlist__item strong {
+  overflow: hidden;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.audio-playlist__item.is-active {
+  border-color: rgba(31, 138, 112, 0.48);
+  background: var(--blue-soft);
+  color: var(--ink);
+}
+
+@keyframes audio-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 .document-preview {
   width: 100%;
   min-height: min(360px, 52dvh);
