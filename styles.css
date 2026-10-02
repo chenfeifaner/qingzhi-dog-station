@@ -164,29 +164,6 @@ select:focus-visible,
   font-size: 11px;
 }
 
-.status-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: #d0a736;
-  box-shadow: 0 0 0 4px rgba(208, 167, 54, 0.12);
-}
-
-.status-dot.is-online {
-  background: #3fc58a;
-  box-shadow: 0 0 0 4px rgba(63, 197, 138, 0.12);
-}
-
-.status-dot.is-offline {
-  background: #d0a736;
-  box-shadow: 0 0 0 4px rgba(208, 167, 54, 0.12);
-}
-
-.status-dot.is-error {
-  background: #ff676e;
-  box-shadow: 0 0 0 4px rgba(255, 103, 110, 0.12);
-}
-
 .main {
   min-height: 100vh;
 }
@@ -233,53 +210,6 @@ select:focus-visible,
   padding: 22px 24px calc(30px + env(safe-area-inset-bottom));
 }
 
-.mode-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 9px;
-  min-height: 34px;
-  padding: 0 12px;
-  border: 1px solid rgba(255, 255, 255, 0.48);
-  border-radius: 6px;
-  background: rgba(255, 255, 255, 0.62);
-  color: var(--ink-soft);
-  font: inherit;
-  font-size: 12px;
-  font-weight: 700;
-  text-align: left;
-  white-space: nowrap;
-  transition: border-color 160ms ease, background 160ms ease, transform 160ms ease;
-}
-
-.mode-badge:hover {
-  border-color: rgba(31, 138, 112, 0.42);
-  background: rgba(255, 255, 255, 0.82);
-  transform: translateY(-1px);
-}
-
-.mode-select {
-  min-width: 94px;
-  padding: 0 16px 0 0;
-  border: 0;
-  outline: 0;
-  background: transparent;
-  color: inherit;
-  font: inherit;
-  font-weight: 700;
-  text-align: left;
-  cursor: pointer;
-}
-
-.mode-select:disabled {
-  color: inherit;
-  opacity: 1;
-}
-
-.mode-select option {
-  color: var(--ink);
-  background: #ffffff;
-}
-
 .panel {
   padding: 24px;
   border: 1px solid rgba(207, 236, 225, 0.72);
@@ -319,16 +249,6 @@ select:focus-visible,
 
 .resources-head h2 {
   margin-top: 0;
-}
-
-.upload-head-meta {
-  display: grid;
-  justify-items: end;
-  gap: 8px;
-}
-
-.mobile-mode-badge {
-  display: none;
 }
 
 .button {
@@ -1627,19 +1547,6 @@ select:focus-visible,
   .topbar {
     min-height: 64px;
     padding: 0 16px;
-  }
-
-  .topbar__actions .mode-badge {
-    display: none;
-  }
-
-  .upload-head-meta {
-    width: 100%;
-    justify-items: start;
-  }
-
-  .mobile-mode-badge {
-    display: inline-flex;
   }
 
   #adminButton,
