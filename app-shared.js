@@ -2729,12 +2729,45 @@ function setupAudioPlayer() {
   hydratePlaylistCovers();
 }
 
-function supportsPreviewFullscreen() {
+function getFullscreenElement() {
+  return document.fullscreenElement || document.webkitFullscreenElement || null;
+}
+
+function isFullscreenAvailable(element) {
   return Boolean(
-    document.fullscreenEnabled
-    && elements.previewPanel
-    && typeof elements.previewPanel.requestFullscreen === "function"
+    element
+    && (
+      typeof element.requestFullscreen === "function"
+      || typeof element.webkitRequestFullscreen === "function"
+    )
   );
+}
+
+function requestElementFullscreen(element) {
+  if (!element) {
+    return Promise.resolve();
+  }
+  if (typeof element.requestFullscreen === "function") {
+    return element.requestFullscreen();
+  }
+  if (typeof element.webkitRequestFullscreen === "function") {
+    return Promise.resolve(element.webkitRequestFullscreen());
+  }
+  return Promise.resolve();
+}
+
+function exitElementFullscreen() {
+  if (typeof document.exitFullscreen === "function") {
+    return document.exitFullscreen();
+  }
+  if (typeof document.webkitExitFullscreen === "function") {
+    return Promise.resolve(document.webkitExitFullscreen());
+  }
+  return Promise.resolve();
+}
+
+function supportsPreviewFullscreen() {
+  return isFullscreenAvailable(elements.previewPanel);
 }
 
 function isPreviewReadingSupported(resource) {
@@ -2752,7 +2785,7 @@ function syncPreviewFullscreenButton() {
   if (!elements.previewFullscreenButton) {
     return;
   }
-  const active = document.fullscreenElement === elements.previewPanel
+  const active = getFullscreenElement() === elements.previewPanel
     || elements.previewModal.classList.contains("is-expanded");
   elements.previewFullscreenButton.setAttribute("aria-pressed", String(active));
   elements.previewFullscreenButton.setAttribute("aria-label", active ? "退出全屏" : "全屏显示");
@@ -2786,8 +2819,8 @@ async function togglePreviewFullscreen() {
   if (!panel) {
     return;
   }
-  if (document.fullscreenElement === panel) {
-    await document.exitFullscreen();
+  if (getFullscreenElement() === panel) {
+    await exitElementFullscreen();
     return;
   }
   if (!supportsPreviewFullscreen()) {
@@ -2796,7 +2829,7 @@ async function togglePreviewFullscreen() {
     return;
   }
   try {
-    await panel.requestFullscreen();
+    await requestElementFullscreen(panel);
   } catch (error) {
     elements.previewModal.classList.toggle("is-expanded");
   }
@@ -2991,8 +3024,8 @@ function closePreview() {
   if (video) {
     video.pause();
   }
-  if (document.fullscreenElement === elements.previewPanel && typeof document.exitFullscreen === "function") {
-    document.exitFullscreen().catch(() => {
+  if (getFullscreenElement() === elements.previewPanel) {
+    exitElementFullscreen().catch(() => {
       // Ignore if the browser has already left fullscreen.
     });
   }
@@ -3019,7 +3052,7 @@ function isTextReaderResource(resource) {
 }
 
 function syncReaderFullscreenButton() {
-  const active = document.fullscreenElement === elements.readerView;
+  const active = getFullscreenElement() === elements.readerView;
   elements.readerFullscreenButton.setAttribute("aria-pressed", String(active));
   elements.readerFullscreenButton.setAttribute("aria-label", active ? "退出全屏" : "全屏显示");
   elements.readerFullscreenButton.title = active ? "退出全屏" : "全屏显示";
@@ -3098,15 +3131,15 @@ async function toggleReaderFullscreen() {
   if (!elements.readerView) {
     return;
   }
-  if (document.fullscreenElement === elements.readerView) {
-    await document.exitFullscreen();
+  if (getFullscreenElement() === elements.readerView) {
+    await exitElementFullscreen();
     return;
   }
-  if (!document.fullscreenEnabled || typeof elements.readerView.requestFullscreen !== "function") {
+  if (!isFullscreenAvailable(elements.readerView)) {
     return;
   }
   try {
-    await elements.readerView.requestFullscreen();
+    await requestElementFullscreen(elements.readerView);
   } catch (error) {
     // The reader already fills the page if the browser blocks fullscreen.
   }
@@ -3154,8 +3187,8 @@ async function openReader(id) {
 }
 
 function closeReader() {
-  if (document.fullscreenElement === elements.readerView && typeof document.exitFullscreen === "function") {
-    document.exitFullscreen().catch(() => {
+  if (getFullscreenElement() === elements.readerView) {
+    exitElementFullscreen().catch(() => {
       // Ignore if the browser has already left fullscreen.
     });
   }
@@ -3847,9 +3880,23 @@ function bindEvents() {
       downloadResource(state.readerId);
     }
   });
-  document.addEventListener("fullscreenchange", () => {
+  const syncFullscreenState = () => {
     syncPreviewFullscreenButton();
     syncReaderFullscreenButton();
+  };
+  document.addEventListener("fullscreenchange", syncFullscreenState);
+  document.addEventListener("webkitfullscreenchange", syncFullscreenState);
+  elements.previewArea.addEventListener("dblclick", (event) => {
+    if (event.target.closest("button, a, input, textarea, video, audio")) {
+      return;
+    }
+    togglePreviewFullscreen();
+  });
+  elements.readerBody.addEventListener("dblclick", (event) => {
+    if (event.target.closest("button, a, input, textarea")) {
+      return;
+    }
+    toggleReaderFullscreen();
   });
   elements.copyLinkButton.addEventListener("click", copyResourceLink);
   elements.editForm.addEventListener("submit", saveEdit);
@@ -3876,7 +3923,7 @@ function bindEvents() {
     if (event.key !== "Escape") {
       return;
     }
-    if (document.fullscreenElement) {
+    if (getFullscreenElement()) {
       return;
     }
     if (elements.confirmModal.classList.contains("is-open")) {
