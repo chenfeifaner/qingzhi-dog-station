@@ -1048,11 +1048,6 @@ function renderResources() {
           <span data-icon="trash-2"></span>
         </button>`
       : "";
-    const cloudUploadAction = resource.storage === "browser" && resource.blob
-      ? `<button class="row-action" type="button" data-action="cloud-upload" data-id="${escapeHTML(resource.id)}" aria-label="上传到云端 ${escapeHTML(resource.name)}" title="上传到云端">
-          <span data-icon="cloud-upload"></span>
-        </button>`
-      : "";
     return `
       <article class="resource-row ${playable ? "is-playable" : ""}" data-resource-id="${escapeHTML(resource.id)}" ${playable ? 'role="button" tabindex="0"' : ""}>
         <div class="resource-main">
@@ -1068,7 +1063,6 @@ function renderResources() {
         <span class="resource-actions">
           ${previewAction}
           ${editAction}
-          ${cloudUploadAction}
           <button class="row-action" type="button" data-action="download" data-id="${escapeHTML(resource.id)}" aria-label="下载 ${escapeHTML(resource.name)}">
             <span data-icon="download"></span>
           </button>
@@ -1786,8 +1780,16 @@ async function syncPendingCloudUploads() {
   if (state.mode !== "supabase" || state.syncingPending) {
     return;
   }
-  const pendingResources = (await getAllLocalResources())
+  const storedPending = (await getAllLocalResources())
     .filter((resource) => resource.pendingCloud === true && resource.blob);
+  const storedIds = new Set(storedPending.map((resource) => resource.id));
+  const memoryPending = state.resources.filter((resource) => (
+    resource.storage === "browser"
+    && resource.pendingCloud === true
+    && resource.blob
+    && !storedIds.has(resource.id)
+  ));
+  const pendingResources = [...storedPending, ...memoryPending];
   if (!pendingResources.length) {
     return;
   }
@@ -2079,47 +2081,6 @@ async function saveEdit(event) {
   } finally {
     elements.saveEditButton.disabled = false;
     elements.saveEditButton.textContent = "保存修改";
-  }
-}
-
-async function uploadLocalResourceToCloud(id) {
-  const resource = findResource(id);
-  if (!resource) {
-    return;
-  }
-  if (!resource.blob || resource.storage !== "browser") {
-    showToast("无需上传", "这个文件已经在云端", "error");
-    return;
-  }
-  if (!SUPABASE_ENABLED) {
-    showToast("云端不可用", "请稍后重试", "error");
-    return;
-  }
-  try {
-    showToast("正在上传到云端", resource.name);
-    const cloudResource = await uploadToSupabase(
-      { id: resource.id, file: resource.blob, kind: resource.kind },
-      {
-        name: resource.name,
-        category: resource.category || "其他",
-        tags: resource.tags || [],
-        description: resource.description || ""
-      }
-    );
-    await removeLocalResource(resource.id);
-    revokeObjectUrl(resource.id);
-    state.resources = [
-      normalizeResource(cloudResource),
-      ...state.resources.filter((entry) => entry.id !== resource.id)
-    ];
-    if (state.mode === "supabase" && !state.cloudOffline) {
-      await loadSupabasePage();
-    } else {
-      await loadResources();
-    }
-    showToast("已上传到云端", resource.name);
-  } catch (error) {
-    showToast("上传云端失败", error.message || "请稍后重试", "error");
   }
 }
 
@@ -2455,8 +2416,6 @@ function bindEvents() {
       openPreview(id);
     } else if (action.dataset.action === "edit") {
       openEdit(id);
-    } else if (action.dataset.action === "cloud-upload") {
-      uploadLocalResourceToCloud(id);
     } else if (action.dataset.action === "download") {
       downloadResource(id);
     } else if (action.dataset.action === "delete") {
