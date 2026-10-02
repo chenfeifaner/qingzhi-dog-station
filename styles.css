@@ -349,6 +349,10 @@ select:focus-visible,
   background: var(--surface-soft);
 }
 
+.icon-button[hidden] {
+  display: none;
+}
+
 .icon-button[aria-pressed="true"] {
   border-color: #1f8a70;
   background: rgba(31, 138, 112, 0.16);
