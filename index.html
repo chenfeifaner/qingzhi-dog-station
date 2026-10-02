@@ -10,7 +10,7 @@
   <link rel="preconnect" href="https://vdihfdrylanbfyrhvnnl.supabase.co" crossorigin>
   <link rel="dns-prefetch" href="https://vdihfdrylanbfyrhvnnl.supabase.co">
   <link rel="preload" as="image" href="assets/qingque-bg.jpg" fetchpriority="high">
-  <link rel="stylesheet" href="styles.css?v=ui-preview-13">
+  <link rel="stylesheet" href="styles.css?v=ui-preview-14">
 </head>
 <body>
   <div class="app-shell">
@@ -28,8 +28,8 @@
             <span class="status-dot"></span>
             <select class="mode-select" data-mode-select aria-label="切换模式">
               <option value="connecting" disabled selected>正在连接</option>
-              <option value="online">在线 · 私密</option>
-              <option value="offline">离线 · 公开</option>
+              <option value="online">在线</option>
+              <option value="offline">离线</option>
               <option value="reconnecting" disabled>重连中</option>
               <option value="error" disabled>连接异常</option>
             </select>
@@ -57,8 +57,8 @@
                 <span class="status-dot"></span>
                 <select class="mode-select" data-mode-select aria-label="切换模式">
                   <option value="connecting" disabled selected>正在连接</option>
-                  <option value="online">在线 · 私密</option>
-                  <option value="offline">离线 · 公开</option>
+                  <option value="online">在线</option>
+                  <option value="offline">离线</option>
                   <option value="reconnecting" disabled>重连中</option>
                   <option value="error" disabled>连接异常</option>
                 </select>
@@ -93,6 +93,13 @@
             <label class="field field--grow">
               <span>文件名称</span>
               <input id="resourceNameInput" name="resourceName" type="text" maxlength="120" autocomplete="off" placeholder="留空则使用原文件名">
+            </label>
+            <label class="field field--grow">
+              <span>可见范围</span>
+              <select id="visibilitySelect" name="visibility">
+                <option value="public">公开 · 所有人可见</option>
+                <option value="private">私密 · 仅自己和管理员可见</option>
+              </select>
             </label>
             <label class="field field--grow">
               <span>标签</span>
@@ -317,6 +324,6 @@
 
   <div class="toast-region" id="toastRegion" aria-live="polite" aria-atomic="true"></div>
 
-  <script src="app-shared.js?v=ui-preview-13" defer></script>
+  <script src="app-shared.js?v=ui-preview-14" defer></script>
 </body>
 </html>
