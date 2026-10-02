@@ -1663,6 +1663,11 @@ select:focus-visible,
   padding: 0;
 }
 
+.reader__panel:fullscreen .reader__bar,
+.reader.is-expanded .reader__bar {
+  display: none;
+}
+
 .reader__bar {
   display: flex;
   align-items: center;
