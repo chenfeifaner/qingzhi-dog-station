@@ -3882,9 +3882,6 @@ function bindEvents() {
     }
   });
   elements.previewReadButton.addEventListener("click", togglePreviewReading);
-  elements.previewFullscreenButton.addEventListener("click", () => {
-    togglePreviewFullscreen();
-  });
   elements.readerBackButton.addEventListener("click", closeReader);
   elements.readerPrevButton.addEventListener("click", () => goReaderPage(-1));
   elements.readerNextButton.addEventListener("click", () => goReaderPage(1));
@@ -3905,12 +3902,6 @@ function bindEvents() {
   };
   document.addEventListener("fullscreenchange", syncFullscreenState);
   document.addEventListener("webkitfullscreenchange", syncFullscreenState);
-  elements.previewArea.addEventListener("dblclick", (event) => {
-    if (event.target.closest("button, a, input, textarea, video, audio")) {
-      return;
-    }
-    togglePreviewFullscreen();
-  });
   elements.readerPanel.addEventListener("dblclick", (event) => {
     if (event.target.closest("button, a, input, textarea, select, .reader__tools")) {
       return;
