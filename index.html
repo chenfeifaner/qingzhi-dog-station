@@ -10,7 +10,7 @@
   <link rel="preconnect" href="https://vdihfdrylanbfyrhvnnl.supabase.co" crossorigin>
   <link rel="dns-prefetch" href="https://vdihfdrylanbfyrhvnnl.supabase.co">
   <link rel="preload" as="image" href="assets/qingque-bg.jpg" fetchpriority="high">
-  <link rel="stylesheet" href="styles.css?v=ui-preview-39">
+  <link rel="stylesheet" href="styles.css?v=ui-preview-40">
 </head>
 <body>
   <div class="app-shell">
@@ -227,6 +227,39 @@
     </article>
   </div>
 
+  <div class="reader" id="readerView" aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="readerTitle">
+    <header class="reader__bar">
+      <button class="reader__icon" id="readerBackButton" type="button" aria-label="返回资源列表" title="返回">
+        <span data-icon="chevron-left"></span>
+      </button>
+      <div class="reader__heading">
+        <span class="reader__label">文档阅读</span>
+        <h2 id="readerTitle">文档</h2>
+      </div>
+      <div class="reader__tools">
+        <button class="reader__icon" id="readerFontDownButton" type="button" aria-label="缩小字号" title="缩小字号">
+          <span data-icon="minus"></span>
+        </button>
+        <span class="reader__scale" id="readerScale">100%</span>
+        <button class="reader__icon" id="readerFontUpButton" type="button" aria-label="放大字号" title="放大字号">
+          <span data-icon="plus"></span>
+        </button>
+        <button class="reader__icon" id="readerReadingButton" type="button" aria-label="阅读模式" aria-pressed="true" title="阅读模式">
+          <span data-icon="book-open"></span>
+        </button>
+        <button class="reader__icon" id="readerFullscreenButton" type="button" aria-label="全屏显示" aria-pressed="false" title="全屏显示">
+          <span data-icon="maximize"></span>
+        </button>
+        <button class="reader__icon" id="readerDownloadButton" type="button" aria-label="下载文档" title="下载文档">
+          <span data-icon="download"></span>
+        </button>
+      </div>
+    </header>
+    <div class="reader__body" id="readerBody">
+      <pre class="reader__text" id="readerText" data-reader-text>正在加载文档内容…</pre>
+    </div>
+  </div>
+
   <div class="modal" id="adminModal" aria-hidden="true">
     <div class="modal__backdrop" data-close-admin></div>
     <article class="modal__panel modal__panel--admin" role="dialog" aria-modal="true" aria-labelledby="adminTitle">
@@ -308,6 +341,6 @@
 
   <div class="toast-region" id="toastRegion" aria-live="polite" aria-atomic="true"></div>
 
-  <script src="app-shared.js?v=ui-preview-39" defer></script>
+  <script src="app-shared.js?v=ui-preview-40" defer></script>
 </body>
 </html>
