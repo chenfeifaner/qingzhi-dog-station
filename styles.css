@@ -1288,6 +1288,7 @@ select:focus-visible,
   box-shadow: 0 16px 36px rgba(4, 31, 26, 0.22);
   animation: audio-spin 8s linear infinite;
   animation-play-state: paused;
+  will-change: transform;
 }
 
 .audio-cover::after {
@@ -1349,6 +1350,10 @@ select:focus-visible,
   align-items: center;
   justify-content: center;
   gap: 8px;
+}
+
+.audio-player__close {
+  display: none;
 }
 
 .audio-playlist {
@@ -1456,6 +1461,10 @@ select:focus-visible,
 .audio-player.is-docked .audio-player__controls {
   grid-column: 1 / -1;
   justify-content: flex-end;
+}
+
+.audio-player.is-docked .audio-player__close {
+  display: inline-grid;
 }
 
 .audio-player.is-docked .audio-playlist {
@@ -2001,5 +2010,10 @@ select:focus-visible,
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
+  }
+
+  .audio-cover {
+    animation-duration: 8s !important;
+    animation-iteration-count: infinite !important;
   }
 }
