@@ -202,6 +202,7 @@ const elements = {
   previewDownloadButton: document.getElementById("previewDownloadButton"),
   copyLinkButton: document.getElementById("copyLinkButton"),
   readerView: document.getElementById("readerView"),
+  readerPanel: document.getElementById("readerPanel"),
   readerTitle: document.getElementById("readerTitle"),
   readerBody: document.getElementById("readerBody"),
   readerText: document.getElementById("readerText"),
@@ -3052,7 +3053,8 @@ function isTextReaderResource(resource) {
 }
 
 function syncReaderFullscreenButton() {
-  const active = getFullscreenElement() === elements.readerView;
+  const active = getFullscreenElement() === elements.readerPanel
+    || elements.readerView.classList.contains("is-expanded");
   elements.readerFullscreenButton.setAttribute("aria-pressed", String(active));
   elements.readerFullscreenButton.setAttribute("aria-label", active ? "退出全屏" : "全屏显示");
   elements.readerFullscreenButton.title = active ? "退出全屏" : "全屏显示";
@@ -3128,20 +3130,28 @@ function goReaderPage(delta) {
 }
 
 async function toggleReaderFullscreen() {
-  if (!elements.readerView) {
+  const panel = elements.readerPanel;
+  if (!panel) {
     return;
   }
-  if (getFullscreenElement() === elements.readerView) {
+  if (getFullscreenElement() === panel) {
     await exitElementFullscreen();
     return;
   }
-  if (!isFullscreenAvailable(elements.readerView)) {
+  if (elements.readerView.classList.contains("is-expanded")) {
+    elements.readerView.classList.remove("is-expanded");
+    syncReaderFullscreenButton();
+    return;
+  }
+  if (!isFullscreenAvailable(panel)) {
+    elements.readerView.classList.add("is-expanded");
+    syncReaderFullscreenButton();
     return;
   }
   try {
-    await requestElementFullscreen(elements.readerView);
+    await requestElementFullscreen(panel);
   } catch (error) {
-    // The reader already fills the page if the browser blocks fullscreen.
+    elements.readerView.classList.add("is-expanded");
   }
   syncReaderFullscreenButton();
 }
@@ -3154,6 +3164,7 @@ async function openReader(id) {
   state.readerId = id;
   elements.readerTitle.textContent = resource.originalName || resource.name;
   elements.readerView.classList.toggle("is-code", resource.kind === "code");
+  elements.readerView.classList.remove("is-expanded");
   state.readerPages = [];
   state.readerPageIndex = 0;
   elements.readerPager.hidden = true;
@@ -3187,12 +3198,12 @@ async function openReader(id) {
 }
 
 function closeReader() {
-  if (getFullscreenElement() === elements.readerView) {
+  if (getFullscreenElement() === elements.readerPanel) {
     exitElementFullscreen().catch(() => {
       // Ignore if the browser has already left fullscreen.
     });
   }
-  elements.readerView.classList.remove("is-open", "is-reading", "is-code");
+  elements.readerView.classList.remove("is-open", "is-reading", "is-code", "is-expanded");
   elements.readerView.setAttribute("aria-hidden", "true");
   elements.readerText.textContent = "";
   state.readerPages = [];
@@ -3892,8 +3903,8 @@ function bindEvents() {
     }
     togglePreviewFullscreen();
   });
-  elements.readerBody.addEventListener("dblclick", (event) => {
-    if (event.target.closest("button, a, input, textarea")) {
+  elements.readerPanel.addEventListener("dblclick", (event) => {
+    if (event.target.closest("button, a, input, textarea, select, .reader__tools")) {
       return;
     }
     toggleReaderFullscreen();
@@ -3917,6 +3928,9 @@ function bindEvents() {
   });
   document.querySelectorAll("[data-close-admin]").forEach((trigger) => {
     trigger.addEventListener("click", closeAdminModal);
+  });
+  document.querySelectorAll("[data-close-reader]").forEach((trigger) => {
+    trigger.addEventListener("click", closeReader);
   });
 
   document.addEventListener("keydown", (event) => {
