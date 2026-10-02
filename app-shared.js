@@ -18,7 +18,6 @@ const ICONS = {
   "package-open": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22v-9"/><path d="M15.17 2.21 12 5.38 8.83 2.21 3.77 5.25A2 2 0 0 0 2.72 7v10a2 2 0 0 0 1.05 1.76l7 4A2 2 0 0 0 12 22a2 2 0 0 0 1.23-.24l7-4A2 2 0 0 0 21.28 17V7a2 2 0 0 0-1.05-1.75Z"/><path d="m7 8 5 3 5-3"/><path d="m7 13 5 3 5-3"/></svg>',
   "pencil": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"/><path d="m15 5 4 4"/></svg>',
   "plus": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg>',
-  "refresh-cw": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 16h5v5"/></svg>',
   "search": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>',
   "shield": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M20 13c0 5-3.5 7.5-8 9-4.5-1.5-8-4-8-9V5l8-3 8 3Z"/><path d="M12 8v4"/><path d="M12 16h.01"/></svg>',
   "trash-2": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg>',
@@ -129,6 +128,7 @@ const state = {
 
 const elements = {
   modeBadges: document.querySelectorAll("[data-mode-badge]"),
+  modeSelects: document.querySelectorAll("[data-mode-select]"),
   adminButton: document.getElementById("adminButton"),
   adminButtonText: document.getElementById("adminButtonText"),
   dropZone: document.getElementById("dropZone"),
@@ -452,42 +452,42 @@ function setStorageMode(mode) {
 
 function updateStorageBadge(mode) {
   const badges = [...elements.modeBadges];
-  const setBadge = (className, label) => {
+  const setBadge = (className, label, selectValue) => {
     badges.forEach((badge) => {
-      const text = badge.querySelector(".mode-badge__label");
       const dot = badge.querySelector(".status-dot");
+      const select = badge.querySelector("[data-mode-select]");
       if (dot) {
         dot.className = `status-dot ${className}`.trim();
       }
-      if (text) {
-        text.textContent = label;
+      if (select) {
+        select.value = selectValue;
       }
-      badge.setAttribute("aria-label", `当前${label}，点击切换模式`);
-      badge.setAttribute("title", "点击切换在线和离线模式");
+      badge.setAttribute("aria-label", `当前${label}`);
+      badge.setAttribute("title", label);
     });
   };
 
   if (mode === "server") {
-    setBadge("is-online", "在线");
+    setBadge("is-online", "在线", "online");
     return;
   }
 
   if (mode === "supabase") {
-    setBadge("is-online", "在线");
+    setBadge("is-online", "在线", "online");
     return;
   }
 
   if (mode === "local") {
-    setBadge("is-offline", "离线");
+    setBadge("is-offline", "离线", "offline");
     return;
   }
 
   if (mode === "supabase-offline") {
-    setBadge("is-offline", "重连中");
+    setBadge("is-offline", "重连中", "reconnecting");
     return;
   }
 
-  setBadge("is-error", "连接异常");
+  setBadge("is-error", "连接异常", "error");
 }
 
 async function detectStorageMode() {
@@ -516,30 +516,32 @@ async function detectStorageMode() {
   }
 }
 
-async function toggleStorageMode() {
+async function switchStorageMode(targetMode) {
   if (state.activeUpload) {
     showToast("上传进行中", "完成后再切换模式", "error");
+    updateStorageBadge(state.mode);
     return;
   }
 
-  const switchToOffline = state.mode !== "local";
-  if (!switchToOffline && !SUPABASE_ENABLED) {
-    showToast("无法切换在线", "在线服务暂不可用", "error");
-    return;
-  }
-
-  state.selectedIds.clear();
-  state.page = 1;
-
-  if (switchToOffline) {
+  if (targetMode === "offline") {
     state.mode = "local";
     state.cloudOffline = false;
     updateStorageBadge("local");
+    state.selectedIds.clear();
+    state.page = 1;
     await loadResources();
     showToast("已切换到离线模式", "仅显示当前环境中的文件");
     return;
   }
 
+  if (!SUPABASE_ENABLED) {
+    showToast("无法切换在线", "在线服务暂不可用", "error");
+    updateStorageBadge(state.mode);
+    return;
+  }
+
+  state.selectedIds.clear();
+  state.page = 1;
   state.mode = "supabase";
   state.cloudOffline = false;
   updateStorageBadge("supabase");
@@ -2238,8 +2240,8 @@ function setFilter(filter) {
 }
 
 function bindEvents() {
-  elements.modeBadges.forEach((badge) => {
-    badge.addEventListener("click", toggleStorageMode);
+  elements.modeSelects.forEach((select) => {
+    select.addEventListener("change", () => switchStorageMode(select.value));
   });
   elements.adminButton.addEventListener("click", () => {
     if (state.isAdmin) {
