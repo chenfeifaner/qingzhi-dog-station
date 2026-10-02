@@ -10,7 +10,7 @@
   <link rel="preconnect" href="https://vdihfdrylanbfyrhvnnl.supabase.co" crossorigin>
   <link rel="dns-prefetch" href="https://vdihfdrylanbfyrhvnnl.supabase.co">
   <link rel="preload" as="image" href="assets/qingque-bg.jpg" fetchpriority="high">
-  <link rel="stylesheet" href="styles.css?v=ui-preview-49">
+  <link rel="stylesheet" href="styles.css?v=ui-preview-50">
 </head>
 <body>
   <div class="app-shell">
@@ -267,6 +267,14 @@
       <div class="reader__body" id="readerBody">
         <pre class="reader__text" id="readerText" data-reader-text>正在加载文档内容…</pre>
       </div>
+      <div class="reader__embed" id="readerEmbed" hidden>
+        <iframe id="readerFrame" title="文档阅读" hidden></iframe>
+        <div class="reader__embed-empty" id="readerEmbedEmpty" hidden>
+          <span data-icon="file"></span>
+          <strong>该文档暂不支持在线阅读</strong>
+          <span>可以下载后用本地软件打开。</span>
+        </div>
+      </div>
     </section>
   </div>
 
@@ -351,6 +359,6 @@
 
   <div class="toast-region" id="toastRegion" aria-live="polite" aria-atomic="true"></div>
 
-  <script src="app-shared.js?v=ui-preview-49" defer></script>
+  <script src="app-shared.js?v=ui-preview-50" defer></script>
 </body>
 </html>
