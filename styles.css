@@ -1668,6 +1668,27 @@ select:focus-visible,
   gap: 6px;
 }
 
+.reader__pager {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.reader__pager[hidden] {
+  display: none;
+}
+
+.reader__divider {
+  width: 1px;
+  height: 22px;
+  margin: 0 2px;
+  background: rgba(23, 33, 31, 0.14);
+}
+
+.reader__page {
+  min-width: 64px;
+}
+
 .reader__icon {
   display: inline-grid;
   place-items: center;
@@ -1757,8 +1778,15 @@ select:focus-visible,
 
 @media (max-width: 680px) {
   .reader__bar {
+    flex-wrap: wrap;
     gap: 8px;
     padding: 8px 10px;
+  }
+
+  .reader__tools {
+    order: 3;
+    width: 100%;
+    justify-content: flex-end;
   }
 
   .reader__heading h2 {
