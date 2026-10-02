@@ -1097,6 +1097,9 @@ function resourceIconHTML(resource) {
   if (resource.kind === "video") {
     return `<span class="file-avatar file-avatar--video" data-video-thumb="${escapeHTML(resource.id)}" data-icon="film"></span>`;
   }
+  if (resource.kind === "audio") {
+    return `<span class="file-avatar file-avatar--audio" data-audio-cover="${escapeHTML(resource.id)}" data-icon="music"></span>`;
+  }
   return `<span class="file-avatar file-avatar--${escapeHTML(resource.kind)}" data-icon="${escapeHTML(typeIcon(resource.kind))}"></span>`;
 }
 
@@ -1274,6 +1277,23 @@ async function hydrateVideoThumbnails(resources) {
   }));
 }
 
+async function hydrateAudioCovers(resources) {
+  const audios = resources.filter((resource) => resource.kind === "audio" && !resource.chunked);
+  await Promise.all(audios.map(async (resource) => {
+    const cover = await getAudioCover(resource);
+    if (!cover) {
+      return;
+    }
+    const selector = `[data-audio-cover="${CSS.escape(resource.id)}"]`;
+    document.querySelectorAll(selector).forEach((thumbnail) => {
+      thumbnail.removeAttribute("data-icon");
+      delete thumbnail.dataset.iconReady;
+      thumbnail.classList.add("has-cover");
+      thumbnail.innerHTML = `<img src="${escapeHTML(cover)}" alt="" loading="lazy" decoding="async">`;
+    });
+  }));
+}
+
 function renderResources() {
   const serverPaged = state.mode === "supabase" && !state.cloudOffline;
   const allResources = serverPaged ? state.resources : filteredResources();
@@ -1363,6 +1383,7 @@ function renderResources() {
 
   hydrateIcons(elements.resourceList);
   hydrateVideoThumbnails(resources);
+  hydrateAudioCovers(resources);
   syncSelection(resources);
   renderPagination(totalPages, totalResources);
 }
@@ -2307,9 +2328,19 @@ async function extractId3Cover(bytes) {
     return "";
   }
   const version = bytes[3];
+  const flags = bytes[5];
   const tagSize = readSynchsafeInteger(bytes, 6);
   const tagEnd = Math.min(bytes.length, 10 + tagSize);
   let offset = 10;
+  let bestImage = null;
+  let bestMime = "";
+
+  if ((flags & 0x40) && version >= 3 && offset + 4 <= tagEnd) {
+    const extendedSize = version === 4
+      ? readSynchsafeInteger(bytes, offset)
+      : readUint32(bytes, offset);
+    offset += version === 4 ? extendedSize : 4 + extendedSize;
+  }
 
   while (offset + 10 <= tagEnd) {
     let frameId = "";
@@ -2356,13 +2387,15 @@ async function extractId3Cover(bytes) {
       const imageEnd = offset + headerSize + frameSize;
       if (payload < imageEnd) {
         const imageBytes = bytes.slice(payload, imageEnd);
-        const imageMime = mime || inferImageMime(imageBytes);
-        return blobToDataUrl(new Blob([imageBytes], { type: imageMime }));
+        if (!bestImage || imageBytes.length > bestImage.length) {
+          bestImage = imageBytes;
+          bestMime = mime || inferImageMime(imageBytes);
+        }
       }
     }
     offset += headerSize + frameSize;
   }
-  return "";
+  return bestImage ? blobToDataUrl(new Blob([bestImage], { type: bestMime })) : "";
 }
 
 async function extractFlacCover(bytes) {
@@ -2403,6 +2436,36 @@ async function extractFlacCover(bytes) {
   return "";
 }
 
+async function extractMp4Cover(bytes) {
+  const marker = [0x63, 0x6f, 0x76, 0x72];
+  for (let offset = 4; offset + 16 < bytes.length; offset += 1) {
+    if (
+      bytes[offset] !== marker[0]
+      || bytes[offset + 1] !== marker[1]
+      || bytes[offset + 2] !== marker[2]
+      || bytes[offset + 3] !== marker[3]
+    ) {
+      continue;
+    }
+    const dataAtomOffset = offset + 4;
+    const atomSize = readUint32(bytes, dataAtomOffset);
+    const atomType = String.fromCharCode(
+      bytes[dataAtomOffset + 4],
+      bytes[dataAtomOffset + 5],
+      bytes[dataAtomOffset + 6],
+      bytes[dataAtomOffset + 7]
+    );
+    if (atomType !== "data" || atomSize < 16 || dataAtomOffset + atomSize > bytes.length) {
+      continue;
+    }
+    const imageType = readUint32(bytes, dataAtomOffset + 8);
+    const imageBytes = bytes.slice(dataAtomOffset + 16, dataAtomOffset + atomSize);
+    const mime = imageType === 14 ? "image/png" : inferImageMime(imageBytes);
+    return blobToDataUrl(new Blob([imageBytes], { type: mime }));
+  }
+  return "";
+}
+
 async function getAudioCover(resource) {
   if (!resource?.url) {
     return "";
@@ -2412,7 +2475,7 @@ async function getAudioCover(resource) {
   }
   try {
     const headers = /^https?:/i.test(resource.url)
-      ? { Range: "bytes=0-2097151" }
+      ? { Range: "bytes=0-5242879" }
       : {};
     const response = await fetchWithTimeout(resource.url, {
       headers,
@@ -2420,7 +2483,9 @@ async function getAudioCover(resource) {
     }, 20000);
     const buffer = await response.arrayBuffer();
     const bytes = new Uint8Array(buffer);
-    const cover = await extractId3Cover(bytes) || await extractFlacCover(bytes);
+    const cover = await extractId3Cover(bytes)
+      || await extractFlacCover(bytes)
+      || await extractMp4Cover(bytes);
     if (cover) {
       state.audioCovers.set(resource.id, cover);
     }
