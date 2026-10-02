@@ -349,6 +349,12 @@ select:focus-visible,
   background: var(--surface-soft);
 }
 
+.icon-button[aria-pressed="true"] {
+  border-color: #1f8a70;
+  background: rgba(31, 138, 112, 0.16);
+  color: #155c4c;
+}
+
 .text-button {
   padding: 0;
   border: 0;
@@ -1218,6 +1224,13 @@ select:focus-visible,
   margin-bottom: 18px;
 }
 
+.modal__head-tools {
+  display: flex;
+  align-items: center;
+  flex: 0 0 auto;
+  gap: 8px;
+}
+
 .modal__label {
   color: var(--muted);
   font-size: 11px;
@@ -1522,6 +1535,82 @@ select:focus-visible,
   text-align: left;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
+}
+
+.modal__panel--preview:fullscreen,
+.modal.is-expanded .modal__panel--preview {
+  display: flex;
+  flex-direction: column;
+  width: 100vw;
+  height: 100dvh;
+  max-height: none;
+  padding: 18px 22px;
+  border: 0;
+  border-radius: 0;
+  overflow: hidden;
+}
+
+.modal.is-expanded {
+  padding: 0;
+}
+
+.modal__panel--preview:fullscreen .preview-area,
+.modal.is-expanded .preview-area {
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: none;
+}
+
+.modal__panel--preview:fullscreen .preview-area iframe,
+.modal.is-expanded .preview-area iframe {
+  height: 100%;
+  min-height: 0;
+}
+
+.modal__panel--preview:fullscreen .document-preview,
+.modal.is-expanded .document-preview {
+  height: 100%;
+  min-height: 0;
+  max-height: none;
+}
+
+.modal__panel--preview:fullscreen .preview-area img,
+.modal__panel--preview:fullscreen .preview-area video,
+.modal.is-expanded .preview-area img,
+.modal.is-expanded .preview-area video {
+  max-height: 100%;
+}
+
+.modal.is-reading .modal__panel--preview {
+  width: min(1080px, 100%);
+}
+
+.modal.is-reading .preview-meta {
+  display: none;
+}
+
+.modal.is-reading .preview-area {
+  background: rgba(255, 255, 255, 0.86);
+}
+
+.modal.is-reading .document-preview {
+  max-width: 74ch;
+  min-height: min(420px, 60dvh);
+  margin: 0 auto;
+  padding: 30px 34px;
+  background: #ffffff;
+  color: #1b2b27;
+  font-family: Georgia, "Times New Roman", "Noto Serif SC", "Songti SC", serif;
+  font-size: 16px;
+  line-height: 1.95;
+  letter-spacing: 0.01em;
+}
+
+.modal.is-reading.is-code-preview .document-preview {
+  font-family: "Cascadia Code", "SFMono-Regular", Consolas, monospace;
+  font-size: 14.5px;
+  line-height: 1.8;
+  letter-spacing: 0;
 }
 
 .preview-placeholder {
@@ -2013,6 +2102,21 @@ select:focus-visible,
 
   .modal__panel--preview {
     padding: 16px;
+  }
+
+  .modal__panel--preview:fullscreen,
+  .modal.is-expanded .modal__panel--preview {
+    padding: 12px;
+  }
+
+  .modal__head-tools {
+    gap: 6px;
+  }
+
+  .modal.is-reading .document-preview {
+    padding: 20px 18px;
+    font-size: 15px;
+    line-height: 1.85;
   }
 
   .preview-area img,
