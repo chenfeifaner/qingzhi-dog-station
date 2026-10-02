@@ -1613,6 +1613,177 @@ select:focus-visible,
   letter-spacing: 0;
 }
 
+.reader {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  display: none;
+  flex-direction: column;
+  background: #eef1ee;
+  color: #17211f;
+}
+
+.reader.is-open {
+  display: flex;
+}
+
+.reader__bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 0 0 auto;
+  padding: 10px clamp(12px, 3vw, 26px);
+  border-bottom: 1px solid rgba(23, 33, 31, 0.1);
+  background: rgba(255, 255, 255, 0.88);
+  backdrop-filter: blur(18px) saturate(1.2);
+}
+
+.reader__heading {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.reader__label {
+  display: block;
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.reader__heading h2 {
+  margin: 2px 0 0;
+  font-size: 15px;
+  font-weight: 750;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.reader__tools {
+  display: flex;
+  align-items: center;
+  flex: 0 0 auto;
+  gap: 6px;
+}
+
+.reader__icon {
+  display: inline-grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  padding: 0;
+  border: 1px solid rgba(87, 105, 115, 0.24);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.72);
+  color: var(--ink);
+}
+
+.reader__icon:hover:not(:disabled) {
+  background: var(--surface-soft);
+}
+
+.reader__icon[aria-pressed="true"] {
+  border-color: #1f8a70;
+  background: rgba(31, 138, 112, 0.16);
+  color: #155c4c;
+}
+
+.reader__icon:disabled {
+  opacity: 0.38;
+  cursor: not-allowed;
+}
+
+.reader__icon svg {
+  width: 18px;
+  height: 18px;
+}
+
+.reader__scale {
+  min-width: 40px;
+  color: var(--muted);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+
+.reader__body {
+  flex: 1 1 auto;
+  min-height: 0;
+  padding: clamp(18px, 4vw, 46px) clamp(16px, 4vw, 52px) 96px;
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+
+.reader__text {
+  width: 100%;
+  min-height: 100%;
+  max-width: none;
+  margin: 0 auto;
+  color: #1c2725;
+  font-family: "Cascadia Code", "SFMono-Regular", Consolas, monospace;
+  font-size: calc(14px * var(--reader-scale, 1));
+  line-height: 1.75;
+  white-space: pre;
+  overflow-wrap: normal;
+  tab-size: 4;
+}
+
+.reader.is-reading {
+  background: #fbfaf6;
+}
+
+.reader.is-reading .reader__text {
+  max-width: 74ch;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-family: Georgia, "Times New Roman", "Noto Serif SC", "Songti SC", serif;
+  font-size: calc(18px * var(--reader-scale, 1));
+  line-height: 2;
+  letter-spacing: 0.01em;
+}
+
+.reader.is-reading.is-code .reader__text {
+  font-family: "Cascadia Code", "SFMono-Regular", Consolas, monospace;
+  font-size: calc(15px * var(--reader-scale, 1));
+  line-height: 1.85;
+  letter-spacing: 0;
+}
+
+.reader:fullscreen {
+  background: #fbfaf6;
+}
+
+@media (max-width: 680px) {
+  .reader__bar {
+    gap: 8px;
+    padding: 8px 10px;
+  }
+
+  .reader__heading h2 {
+    font-size: 13px;
+  }
+
+  .reader__tools {
+    gap: 4px;
+  }
+
+  .reader__icon {
+    width: 34px;
+    height: 34px;
+  }
+
+  .reader__scale {
+    min-width: 34px;
+    font-size: 10px;
+  }
+
+  .reader__body {
+    padding: 16px 14px 80px;
+  }
+}
+
 .preview-placeholder {
   display: grid;
   justify-items: center;
