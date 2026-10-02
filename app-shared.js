@@ -55,6 +55,7 @@ const SERVER_LIMIT = 250 * 1024 * 1024;
 const LOCAL_LIMIT = 2 * 1024 * 1024 * 1024;
 const SUPABASE_SOURCE_LIMIT = 2 * 1024 * 1024 * 1024;
 const SUPABASE_UPLOAD_LIMIT = 100 * 1024 * 1024;
+const READER_PAGE_SIZE = 1000000;
 const ADMIN_PASSWORD = "我是青雀大人的狗";
 const ADMIN_PASSWORD_PINYIN = "woshiqingquedarendegou";
 const ADMIN_SESSION_KEY = "qingzhi_admin_session";
@@ -139,6 +140,8 @@ const state = {
   readerResource: null,
   readerReading: true,
   readerFontScale: 1,
+  readerPages: [],
+  readerPageIndex: 0,
   audioPlaylist: [],
   audioIndex: -1,
   audioMode: "sequence",
@@ -209,6 +212,10 @@ const elements = {
   readerReadingButton: document.getElementById("readerReadingButton"),
   readerFullscreenButton: document.getElementById("readerFullscreenButton"),
   readerDownloadButton: document.getElementById("readerDownloadButton"),
+  readerPager: document.getElementById("readerPager"),
+  readerPrevButton: document.getElementById("readerPrevButton"),
+  readerNextButton: document.getElementById("readerNextButton"),
+  readerPageIndicator: document.getElementById("readerPageIndicator"),
   audioRestoreButton: document.getElementById("audioRestoreButton"),
   adminModal: document.getElementById("adminModal"),
   adminForm: document.getElementById("adminForm"),
@@ -3048,6 +3055,45 @@ function adjustReaderFont(delta) {
   syncReaderControls();
 }
 
+function buildReaderPages(text) {
+  const pages = [];
+  let start = 0;
+  while (start < text.length) {
+    let end = Math.min(start + READER_PAGE_SIZE, text.length);
+    if (end < text.length) {
+      const code = text.charCodeAt(end - 1);
+      if (code >= 0xd800 && code <= 0xdbff) {
+        end -= 1;
+      }
+    }
+    pages.push(text.slice(start, end));
+    start = end;
+  }
+  return pages.length ? pages : [""];
+}
+
+function renderReaderPage(index) {
+  const pages = state.readerPages.length ? state.readerPages : [""];
+  const pageIndex = Math.min(Math.max(index, 0), pages.length - 1);
+  state.readerPageIndex = pageIndex;
+  elements.readerText.textContent = pages[pageIndex];
+  elements.readerPager.hidden = pages.length <= 1;
+  elements.readerPageIndicator.textContent = `${pageIndex + 1} / ${pages.length}`;
+  elements.readerPrevButton.disabled = pageIndex <= 0;
+  elements.readerNextButton.disabled = pageIndex >= pages.length - 1;
+  elements.readerBody.scrollTop = 0;
+  elements.readerBody.scrollLeft = 0;
+}
+
+function setReaderDocument(text) {
+  state.readerPages = buildReaderPages(text);
+  renderReaderPage(0);
+}
+
+function goReaderPage(delta) {
+  renderReaderPage(state.readerPageIndex + delta);
+}
+
 async function toggleReaderFullscreen() {
   if (!elements.readerView) {
     return;
@@ -3075,6 +3121,9 @@ async function openReader(id) {
   state.readerId = id;
   elements.readerTitle.textContent = resource.originalName || resource.name;
   elements.readerView.classList.toggle("is-code", resource.kind === "code");
+  state.readerPages = [];
+  state.readerPageIndex = 0;
+  elements.readerPager.hidden = true;
   elements.readerText.textContent = "正在加载文档内容…";
   elements.readerView.classList.add("is-open");
   elements.readerView.setAttribute("aria-hidden", "false");
@@ -3096,8 +3145,7 @@ async function openReader(id) {
     if (state.readerId !== id) {
       return;
     }
-    elements.readerText.textContent = text;
-    elements.readerBody.scrollTop = 0;
+    setReaderDocument(text);
   } catch (error) {
     if (state.readerId === id) {
       elements.readerText.textContent = error.message || "文档读取失败";
@@ -3114,6 +3162,9 @@ function closeReader() {
   elements.readerView.classList.remove("is-open", "is-reading", "is-code");
   elements.readerView.setAttribute("aria-hidden", "true");
   elements.readerText.textContent = "";
+  state.readerPages = [];
+  state.readerPageIndex = 0;
+  elements.readerPager.hidden = true;
   state.readerId = "";
   state.readerResource = null;
   if (state.previewObjectUrl) {
@@ -3783,6 +3834,8 @@ function bindEvents() {
     togglePreviewFullscreen();
   });
   elements.readerBackButton.addEventListener("click", closeReader);
+  elements.readerPrevButton.addEventListener("click", () => goReaderPage(-1));
+  elements.readerNextButton.addEventListener("click", () => goReaderPage(1));
   elements.readerReadingButton.addEventListener("click", toggleReaderReading);
   elements.readerFontDownButton.addEventListener("click", () => adjustReaderFont(-0.1));
   elements.readerFontUpButton.addEventListener("click", () => adjustReaderFont(0.1));
