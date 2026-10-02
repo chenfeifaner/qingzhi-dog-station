@@ -397,6 +397,40 @@ function getDocumentPreviewType(resource) {
   return "";
 }
 
+function decodeTextBuffer(buffer, contentType = "") {
+  const bytes = new Uint8Array(buffer);
+  if (bytes.length >= 3 && bytes[0] === 0xef && bytes[1] === 0xbb && bytes[2] === 0xbf) {
+    return new TextDecoder("utf-8", { fatal: true }).decode(bytes.subarray(3));
+  }
+  if (bytes.length >= 2 && bytes[0] === 0xff && bytes[1] === 0xfe) {
+    return new TextDecoder("utf-16le", { fatal: true }).decode(bytes.subarray(2));
+  }
+  if (bytes.length >= 2 && bytes[0] === 0xfe && bytes[1] === 0xff) {
+    return new TextDecoder("utf-16be", { fatal: true }).decode(bytes.subarray(2));
+  }
+
+  const charsetMatch = String(contentType).match(/charset\s*=\s*["']?([^;"'\s]+)/i);
+  const preferred = charsetMatch ? charsetMatch[1].toLowerCase() : "";
+  const candidates = [
+    preferred,
+    "utf-8",
+    "gb18030",
+    "big5",
+    "shift_jis",
+    "utf-16le",
+    "utf-16be"
+  ].filter((value, index, list) => value && list.indexOf(value) === index);
+
+  for (const encoding of candidates) {
+    try {
+      return new TextDecoder(encoding, { fatal: true }).decode(bytes);
+    } catch (error) {
+      // Try the next encoding.
+    }
+  }
+  return new TextDecoder("utf-8").decode(bytes);
+}
+
 async function loadTextDocumentPreview(resource) {
   const target = elements.previewArea.querySelector("[data-document-preview]");
   if (!target) {
@@ -412,7 +446,8 @@ async function loadTextDocumentPreview(resource) {
     if (!response.ok && response.status !== 0) {
       throw new Error("文档读取失败");
     }
-    let text = await response.text();
+    const contentType = response.headers.get("content-type") || resource.mime || "";
+    let text = decodeTextBuffer(await response.arrayBuffer(), contentType);
     if (String(resource.name || "").toLowerCase().endsWith(".json")) {
       try {
         text = JSON.stringify(JSON.parse(text), null, 2);
@@ -2154,10 +2189,14 @@ async function openPreview(id) {
       });
       progressToast.update(94, "正在恢复原文件");
       const originalBlob = await decompressBlob(compressedBlob);
+      const previewBlob = new Blob(
+        [originalBlob],
+        { type: resource.originalMime || resource.mime || "application/octet-stream" }
+      );
       if (state.previewObjectUrl) {
         URL.revokeObjectURL(state.previewObjectUrl);
       }
-      state.previewObjectUrl = URL.createObjectURL(originalBlob);
+      state.previewObjectUrl = URL.createObjectURL(previewBlob);
       resource = {
         ...resource,
         url: state.previewObjectUrl,
