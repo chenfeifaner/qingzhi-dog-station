@@ -2474,18 +2474,47 @@ async function getAudioCover(resource) {
     return state.audioCovers.get(resource.id);
   }
   try {
-    const headers = /^https?:/i.test(resource.url)
-      ? { Range: "bytes=0-5242879" }
-      : {};
-    const response = await fetchWithTimeout(resource.url, {
-      headers,
-      cache: "no-store"
-    }, 20000);
-    const buffer = await response.arrayBuffer();
-    const bytes = new Uint8Array(buffer);
-    const cover = await extractId3Cover(bytes)
-      || await extractFlacCover(bytes)
-      || await extractMp4Cover(bytes);
+    const fetchRange = async (start, end) => {
+      const headers = /^https?:/i.test(resource.url)
+        ? { Range: `bytes=${start}-${end}` }
+        : {};
+      const response = await fetchWithTimeout(resource.url, {
+        headers,
+        cache: "no-store"
+      }, 20000);
+      return new Uint8Array(await response.arrayBuffer());
+    };
+
+    let bytes = await fetchRange(0, 131071);
+    let cover = await extractId3Cover(bytes) || await extractFlacCover(bytes);
+
+    if (!cover && bytes.length >= 10 && String.fromCharCode(bytes[0], bytes[1], bytes[2]) === "ID3") {
+      const tagSize = 10 + readSynchsafeInteger(bytes, 6);
+      if (tagSize > bytes.length && tagSize <= 6 * 1024 * 1024) {
+        bytes = await fetchRange(0, tagSize - 1);
+        cover = await extractId3Cover(bytes);
+      }
+    }
+
+    if (!cover && bytes.length >= 4 && String.fromCharCode(bytes[0], bytes[1], bytes[2], bytes[3]) === "fLaC") {
+      const blockSize = readUint24(bytes, 5);
+      const needed = 8 + blockSize;
+      if (needed > bytes.length && needed <= 6 * 1024 * 1024) {
+        bytes = await fetchRange(0, needed - 1);
+        cover = await extractFlacCover(bytes);
+      }
+    }
+
+    if (!cover && bytes.length >= 8 && String.fromCharCode(bytes[4], bytes[5], bytes[6], bytes[7]) === "ftyp") {
+      const headBytes = await fetchRange(0, 2097151);
+      cover = await extractMp4Cover(headBytes);
+      if (!cover && Number(resource.size) > headBytes.length) {
+        const tailStart = Math.max(0, Number(resource.size) - 1048576);
+        const tailBytes = await fetchRange(tailStart, Number(resource.size) - 1);
+        cover = await extractMp4Cover(tailBytes);
+      }
+    }
+
     if (cover) {
       state.audioCovers.set(resource.id, cover);
     }
