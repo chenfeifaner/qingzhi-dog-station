@@ -124,6 +124,7 @@ const state = {
   selectedIds: new Set(),
   pendingDeleteIds: [],
   previewId: "",
+  previewObjectUrl: "",
   objectUrls: new Map(),
   videoThumbs: new Map(),
   db: null
@@ -2131,13 +2132,44 @@ function findResource(id) {
   return state.resources.find((resource) => resource.id === id);
 }
 
-function openPreview(id) {
-  const resource = findResource(id);
+async function openPreview(id) {
+  let resource = findResource(id);
   if (!resource) {
     return;
   }
 
   state.previewId = id;
+  if (resource.compressed && !resource.chunked) {
+    const progressToast = showProgressToast("正在准备文档预览", resource.name);
+    try {
+      const sourceUrl = resource.url || getObjectUrl(resource);
+      if (!sourceUrl) {
+        throw new Error("文件地址不可用");
+      }
+      const compressedBlob = await fetchBlobWithProgress(sourceUrl, (loaded, total) => {
+        progressToast.update(
+          total ? (loaded / total) * 90 : 0,
+          total ? `${formatBytes(loaded)} / ${formatBytes(total)}` : `已读取 ${formatBytes(loaded)}`
+        );
+      });
+      progressToast.update(94, "正在恢复原文件");
+      const originalBlob = await decompressBlob(compressedBlob);
+      if (state.previewObjectUrl) {
+        URL.revokeObjectURL(state.previewObjectUrl);
+      }
+      state.previewObjectUrl = URL.createObjectURL(originalBlob);
+      resource = {
+        ...resource,
+        url: state.previewObjectUrl,
+        blob: null,
+        compressed: false
+      };
+      progressToast.complete("预览已准备", resource.name);
+    } catch (error) {
+      progressToast.fail("预览准备失败", error.message || "请下载后查看");
+      return;
+    }
+  }
   elements.previewTitle.textContent = resource.originalName || resource.name;
   const url = getObjectUrl(resource);
   let preview = "";
@@ -2177,7 +2209,12 @@ function openPreview(id) {
     preview = `<iframe src="${escapeHTML(url)}" title="${escapeHTML(resource.name)}"></iframe>`;
   } else if (["document", "code"].includes(resource.kind) && url) {
     const documentType = getDocumentPreviewType(resource);
-    if (documentType === "office" && resource.url && !resource.blob) {
+    if (
+      documentType === "office"
+      && resource.url
+      && !resource.blob
+      && !resource.url.startsWith("blob:")
+    ) {
       const absoluteUrl = new URL(resource.url, window.location.href).href;
       const viewerUrl = `https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(absoluteUrl)}`;
       preview = `<iframe src="${escapeHTML(viewerUrl)}" title="${escapeHTML(resource.name)}"></iframe>`;
@@ -2242,6 +2279,10 @@ function closePreview() {
   elements.previewModal.classList.remove("is-open");
   elements.previewModal.setAttribute("aria-hidden", "true");
   state.previewId = "";
+  if (state.previewObjectUrl) {
+    URL.revokeObjectURL(state.previewObjectUrl);
+    state.previewObjectUrl = "";
+  }
   syncModalOpenState();
 }
 
@@ -2575,8 +2616,9 @@ async function writeZipEntriesToDirectory(entries, directoryHandle, onProgress) 
 
 async function downloadFolderResource(resource, url, directoryHandle = null) {
   const progressToast = showProgressToast("正在下载文件夹", resource.name);
+  let archiveBlob = null;
   try {
-    const archiveBlob = await fetchBlobWithProgress(url, (loaded, total) => {
+    archiveBlob = await fetchBlobWithProgress(url, (loaded, total) => {
       progressToast.update(
         total ? Math.min(75, (loaded / total) * 75) : 0,
         total ? `${formatBytes(loaded)} / ${formatBytes(total)}` : `已下载 ${formatBytes(loaded)}`
@@ -2597,6 +2639,11 @@ async function downloadFolderResource(resource, url, directoryHandle = null) {
       progressToast.complete("文件夹已下载", "浏览器不支持自动写入目录，已保存压缩包");
     }
   } catch (error) {
+    if (archiveBlob) {
+      saveBlob(archiveBlob, resource.name || "folder.zip");
+      progressToast.complete("文件夹已下载", "自动恢复失败，已保存压缩包");
+      return;
+    }
     progressToast.fail("文件夹下载失败", error.message || "请稍后重试");
   }
 }
