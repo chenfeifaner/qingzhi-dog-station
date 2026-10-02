@@ -10,7 +10,7 @@
   <link rel="preconnect" href="https://vdihfdrylanbfyrhvnnl.supabase.co" crossorigin>
   <link rel="dns-prefetch" href="https://vdihfdrylanbfyrhvnnl.supabase.co">
   <link rel="preload" as="image" href="assets/qingque-bg.jpg" fetchpriority="high">
-  <link rel="stylesheet" href="styles.css?v=ui-preview-38">
+  <link rel="stylesheet" href="styles.css?v=ui-preview-39">
 </head>
 <body>
   <div class="app-shell">
@@ -199,9 +199,17 @@
           <span class="modal__label">资源预览</span>
           <h2 id="previewTitle">文件预览</h2>
         </div>
-        <button class="icon-button" type="button" data-close-modal aria-label="关闭">
-          <span data-icon="x"></span>
-        </button>
+        <div class="modal__head-tools">
+          <button class="icon-button" id="previewReadButton" type="button" aria-label="阅读模式" aria-pressed="false" title="阅读模式" hidden>
+            <span data-icon="book-open"></span>
+          </button>
+          <button class="icon-button" id="previewFullscreenButton" type="button" aria-label="全屏显示" aria-pressed="false" title="全屏显示">
+            <span data-icon="maximize"></span>
+          </button>
+          <button class="icon-button" type="button" data-close-modal aria-label="关闭" title="关闭">
+            <span data-icon="x"></span>
+          </button>
+        </div>
       </div>
       <div class="preview-area" id="previewArea"></div>
       <div class="preview-meta" id="previewMeta"></div>
@@ -300,6 +308,6 @@
 
   <div class="toast-region" id="toastRegion" aria-live="polite" aria-atomic="true"></div>
 
-  <script src="app-shared.js?v=ui-preview-38" defer></script>
+  <script src="app-shared.js?v=ui-preview-39" defer></script>
 </body>
 </html>
