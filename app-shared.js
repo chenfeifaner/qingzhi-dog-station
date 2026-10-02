@@ -475,7 +475,7 @@ function updateStorageBadge(mode) {
   }
 
   if (mode === "local") {
-    setBadge("is-local", "本机");
+    setBadge("is-offline", "离线");
     return;
   }
 
@@ -570,7 +570,7 @@ function startSupabaseKeepAlive() {
 
 function openDatabase() {
   if (!("indexedDB" in window)) {
-    return Promise.reject(new Error("当前环境不支持本机存储"));
+    return Promise.reject(new Error("当前环境不支持文件暂存"));
   }
   if (state.db) {
     return Promise.resolve(state.db);
