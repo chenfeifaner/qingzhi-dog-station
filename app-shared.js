@@ -2095,11 +2095,6 @@ async function uploadLocalResourceToCloud(id) {
     showToast("云端不可用", "请稍后重试", "error");
     return;
   }
-  if (state.mode !== "supabase" || state.cloudOffline) {
-    showToast("请先切换到在线模式", "切换后即可上传到云端", "error");
-    return;
-  }
-
   try {
     showToast("正在上传到云端", resource.name);
     const cloudResource = await uploadToSupabase(
@@ -2117,7 +2112,11 @@ async function uploadLocalResourceToCloud(id) {
       normalizeResource(cloudResource),
       ...state.resources.filter((entry) => entry.id !== resource.id)
     ];
-    await loadSupabasePage();
+    if (state.mode === "supabase" && !state.cloudOffline) {
+      await loadSupabasePage();
+    } else {
+      await loadResources();
+    }
     showToast("已上传到云端", resource.name);
   } catch (error) {
     showToast("上传云端失败", error.message || "请稍后重试", "error");
