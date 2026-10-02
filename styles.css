@@ -581,6 +581,11 @@ select:focus-visible,
   color: #187386;
 }
 
+.file-avatar--folder {
+  background: var(--blue-soft);
+  color: var(--blue);
+}
+
 .queue-item__copy {
   display: grid;
   gap: 4px;
@@ -1058,6 +1063,11 @@ select:focus-visible,
   color: #187386;
 }
 
+.type-chip--folder {
+  background: var(--blue-soft);
+  color: var(--blue);
+}
+
 .resource-actions {
   display: flex;
   align-items: center;
@@ -1254,6 +1264,23 @@ select:focus-visible,
   height: 58vh;
   border: 0;
   background: #ffffff;
+}
+
+.document-preview {
+  width: 100%;
+  min-height: min(360px, 52dvh);
+  max-height: min(68vh, calc(100dvh - 230px));
+  margin: 0;
+  padding: 16px;
+  overflow: auto;
+  background: rgba(255, 255, 255, 0.72);
+  color: var(--ink);
+  font-family: "Cascadia Code", "SFMono-Regular", Consolas, monospace;
+  font-size: 12px;
+  line-height: 1.65;
+  text-align: left;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 
 .preview-placeholder {
