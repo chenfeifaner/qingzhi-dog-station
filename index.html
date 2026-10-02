@@ -3,14 +3,14 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="青芝犬之站是一个支持批量上传、检索、预览和下载的资源管理页面。">
+  <meta name="description" content="青芝犬之站的资源库，支持上传、搜索、预览和下载。">
   <meta name="theme-color" content="#0b2925">
-  <title>青芝犬之站 · 资源上传中心</title>
+  <title>青芝犬之站</title>
   <link rel="icon" href="favicon.svg?v=1" type="image/svg+xml">
   <link rel="preconnect" href="https://vdihfdrylanbfyrhvnnl.supabase.co" crossorigin>
   <link rel="dns-prefetch" href="https://vdihfdrylanbfyrhvnnl.supabase.co">
   <link rel="preload" as="image" href="assets/qingque-bg.jpg" fetchpriority="high">
-  <link rel="stylesheet" href="styles.css?v=ui-preview-8">
+  <link rel="stylesheet" href="styles.css?v=ui-preview-9">
 </head>
 <body>
   <div class="app-shell">
@@ -26,15 +26,15 @@
         <div class="topbar__actions">
           <div class="mode-badge" data-mode-badge>
             <span class="status-dot"></span>
-            <span>正在检测存储</span>
+            <span>正在连接</span>
           </div>
           <button class="button button-secondary" id="adminButton" type="button" aria-label="管理员模式">
             <span data-icon="shield"></span>
             <span id="adminButtonText">管理员</span>
           </button>
-          <a class="button button-primary add-resource-button" href="#upload" aria-label="添加资源">
+          <a class="button button-primary add-resource-button" href="#upload" aria-label="上传资源">
             <span data-icon="plus"></span>
-            <span>添加资源</span>
+            <span>上传资源</span>
           </a>
         </div>
       </header>
@@ -44,12 +44,12 @@
           <div class="panel__head">
             <div>
               <p class="eyebrow">UPLOAD</p>
-              <h2>上传新资源</h2>
+              <h2>上传资源</h2>
             </div>
             <div class="upload-head-meta">
               <div class="mode-badge mobile-mode-badge" data-mode-badge>
                 <span class="status-dot"></span>
-                <span>正在检测存储</span>
+                <span>正在连接</span>
               </div>
             </div>
           </div>
@@ -79,7 +79,7 @@
 
           <div class="upload-options">
             <label class="field field--grow">
-              <span>资源名称</span>
+              <span>文件名称</span>
               <input id="resourceNameInput" name="resourceName" type="text" maxlength="120" autocomplete="off" placeholder="留空则使用原文件名">
             </label>
             <label class="field field--grow">
@@ -305,6 +305,6 @@
 
   <div class="toast-region" id="toastRegion" aria-live="polite" aria-atomic="true"></div>
 
-  <script src="app-shared.js?v=ui-preview-8" defer></script>
+  <script src="app-shared.js?v=ui-preview-9" defer></script>
 </body>
 </html>
