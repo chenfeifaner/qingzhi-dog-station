@@ -18,6 +18,7 @@ const ICONS = {
   "package-open": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22v-9"/><path d="M15.17 2.21 12 5.38 8.83 2.21 3.77 5.25A2 2 0 0 0 2.72 7v10a2 2 0 0 0 1.05 1.76l7 4A2 2 0 0 0 12 22a2 2 0 0 0 1.23-.24l7-4A2 2 0 0 0 21.28 17V7a2 2 0 0 0-1.05-1.75Z"/><path d="m7 8 5 3 5-3"/><path d="m7 13 5 3 5-3"/></svg>',
   "pencil": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"/><path d="m15 5 4 4"/></svg>',
   "plus": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg>',
+  "refresh-cw": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 16h5v5"/></svg>',
   "search": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>',
   "shield": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M20 13c0 5-3.5 7.5-8 9-4.5-1.5-8-4-8-9V5l8-3 8 3Z"/><path d="M12 8v4"/><path d="M12 16h.01"/></svg>',
   "trash-2": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg>',
@@ -453,7 +454,7 @@ function updateStorageBadge(mode) {
   const badges = [...elements.modeBadges];
   const setBadge = (className, label) => {
     badges.forEach((badge) => {
-      const text = badge.querySelector("span:last-child");
+      const text = badge.querySelector(".mode-badge__label");
       const dot = badge.querySelector(".status-dot");
       if (dot) {
         dot.className = `status-dot ${className}`.trim();
@@ -461,6 +462,8 @@ function updateStorageBadge(mode) {
       if (text) {
         text.textContent = label;
       }
+      badge.setAttribute("aria-label", `当前${label}，点击切换模式`);
+      badge.setAttribute("title", "点击切换在线和离线模式");
     });
   };
 
@@ -511,6 +514,41 @@ async function detectStorageMode() {
   } catch (error) {
     setStorageMode(SUPABASE_ENABLED ? "supabase" : "local");
   }
+}
+
+async function toggleStorageMode() {
+  if (state.activeUpload) {
+    showToast("上传进行中", "完成后再切换模式", "error");
+    return;
+  }
+
+  const switchToOffline = state.mode !== "local";
+  if (!switchToOffline && !SUPABASE_ENABLED) {
+    showToast("无法切换在线", "在线服务暂不可用", "error");
+    return;
+  }
+
+  state.selectedIds.clear();
+  state.page = 1;
+
+  if (switchToOffline) {
+    state.mode = "local";
+    state.cloudOffline = false;
+    updateStorageBadge("local");
+    await loadResources();
+    showToast("已切换到离线模式", "仅显示当前环境中的文件");
+    return;
+  }
+
+  state.mode = "supabase";
+  state.cloudOffline = false;
+  updateStorageBadge("supabase");
+  await loadSupabasePage();
+  if (state.cloudOffline) {
+    showToast("在线连接失败", "仍显示临时文件", "error");
+    return;
+  }
+  showToast("已切换到在线模式", "正在读取共享文件");
 }
 
 async function fetchWithTimeout(url, options = {}, timeout = 8000) {
@@ -2200,6 +2238,9 @@ function setFilter(filter) {
 }
 
 function bindEvents() {
+  elements.modeBadges.forEach((badge) => {
+    badge.addEventListener("click", toggleStorageMode);
+  });
   elements.adminButton.addEventListener("click", () => {
     if (state.isAdmin) {
       setAdminMode(false);
