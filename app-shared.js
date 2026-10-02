@@ -447,7 +447,13 @@ async function loadTextDocumentPreview(resource) {
       throw new Error("文档读取失败");
     }
     const contentType = response.headers.get("content-type") || resource.mime || "";
-    let text = decodeTextBuffer(await response.arrayBuffer(), contentType);
+    let buffer = await response.arrayBuffer();
+    const head = new Uint8Array(buffer, 0, Math.min(buffer.byteLength, 2));
+    if (head.length === 2 && head[0] === 0x1f && head[1] === 0x8b) {
+      const decompressedBlob = await decompressBlob(new Blob([buffer]));
+      buffer = await decompressedBlob.arrayBuffer();
+    }
+    let text = decodeTextBuffer(buffer, contentType);
     if (String(resource.name || "").toLowerCase().endsWith(".json")) {
       try {
         text = JSON.stringify(JSON.parse(text), null, 2);
