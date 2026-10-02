@@ -124,6 +124,7 @@ const state = {
   pendingDeleteIds: [],
   previewId: "",
   objectUrls: new Map(),
+  videoThumbs: new Map(),
   db: null
 };
 
@@ -971,7 +972,81 @@ function resourceIconHTML(resource) {
   if (url) {
     return `<span class="file-avatar file-avatar--image"><img src="${escapeHTML(url)}" alt="" loading="lazy" decoding="async"></span>`;
   }
+  if (resource.kind === "video") {
+    return `<span class="file-avatar file-avatar--video" data-video-thumb="${escapeHTML(resource.id)}" data-icon="film"></span>`;
+  }
   return `<span class="file-avatar file-avatar--${escapeHTML(resource.kind)}" data-icon="${escapeHTML(typeIcon(resource.kind))}"></span>`;
+}
+
+function getVideoThumbnail(resource) {
+  if (!resource || resource.kind !== "video" || resource.chunked) {
+    return Promise.resolve("");
+  }
+  if (state.videoThumbs.has(resource.id)) {
+    return Promise.resolve(state.videoThumbs.get(resource.id));
+  }
+  const url = getObjectUrl(resource);
+  if (!url) {
+    return Promise.resolve("");
+  }
+
+  return new Promise((resolve) => {
+    const video = document.createElement("video");
+    video.crossOrigin = "anonymous";
+    video.muted = true;
+    video.playsInline = true;
+    video.preload = "metadata";
+    video.src = url;
+
+    const finish = (thumbnail = "") => {
+      video.removeAttribute("src");
+      video.load();
+      if (thumbnail) {
+        state.videoThumbs.set(resource.id, thumbnail);
+      }
+      resolve(thumbnail);
+    };
+
+    video.addEventListener("loadeddata", () => {
+      try {
+        const width = video.videoWidth;
+        const height = video.videoHeight;
+        if (!width || !height) {
+          finish();
+          return;
+        }
+        const canvas = document.createElement("canvas");
+        canvas.width = width;
+        canvas.height = height;
+        const context = canvas.getContext("2d");
+        if (!context) {
+          finish();
+          return;
+        }
+        context.drawImage(video, 0, 0, width, height);
+        finish(canvas.toDataURL("image/jpeg", 0.78));
+      } catch (error) {
+        finish();
+      }
+    }, { once: true });
+    video.addEventListener("error", () => finish(), { once: true });
+  });
+}
+
+async function hydrateVideoThumbnails(resources) {
+  const videos = resources.filter((resource) => resource.kind === "video" && !resource.chunked);
+  await Promise.all(videos.map(async (resource) => {
+    const thumbnail = await getVideoThumbnail(resource);
+    if (!thumbnail) {
+      return;
+    }
+    const selector = `[data-video-thumb="${CSS.escape(resource.id)}"]`;
+    document.querySelectorAll(selector).forEach((cover) => {
+      cover.removeAttribute("data-icon");
+      delete cover.dataset.iconReady;
+      cover.innerHTML = `<img src="${escapeHTML(thumbnail)}" alt="" loading="lazy" decoding="async">`;
+    });
+  }));
 }
 
 function renderResources() {
@@ -1062,6 +1137,7 @@ function renderResources() {
   }).join("");
 
   hydrateIcons(elements.resourceList);
+  hydrateVideoThumbnails(resources);
   syncSelection(resources);
   renderPagination(totalPages, totalResources);
 }
