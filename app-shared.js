@@ -48,6 +48,7 @@ const SUPABASE_UPLOAD_LIMIT = 100 * 1024 * 1024;
 const ADMIN_PASSWORD = "我是青雀大人的狗";
 const ADMIN_PASSWORD_PINYIN = "woshiqingquedarendegou";
 const ADMIN_SESSION_KEY = "qingzhi_admin_session";
+const OWNER_TOKEN_KEY = "qingzhi_owner_token_v1";
 const SUPABASE_URL = "https://vdihfdrylanbfyrhvnnl.supabase.co";
 const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_rMzNSWTBYgTa13AMLUgieQ_fq-RnPHY";
 const SUPABASE_TABLE = "resource_items";
@@ -70,6 +71,43 @@ function writeAdminSession(enabled) {
   }
 }
 
+function getOwnerToken() {
+  try {
+    const existing = localStorage.getItem(OWNER_TOKEN_KEY);
+    if (existing) {
+      return existing;
+    }
+    const token = createId();
+    localStorage.setItem(OWNER_TOKEN_KEY, token);
+    return token;
+  } catch (error) {
+    return "anonymous";
+  }
+}
+
+function getVisibilityCategory(resource) {
+  const category = String(resource?.category || "");
+  return category.startsWith("private:") || category === "private"
+    ? "private"
+    : "public";
+}
+
+function getResourceOwnerToken(resource) {
+  const category = String(resource?.category || "");
+  return category.startsWith("private:") ? category.slice("private:".length) : "";
+}
+
+function getUploadCategory() {
+  return state.mode === "local" ? "public" : `private:${getOwnerToken()}`;
+}
+
+function canViewResource(resource) {
+  if (state.isAdmin || getVisibilityCategory(resource) === "public") {
+    return true;
+  }
+  return getResourceOwnerToken(resource) === getOwnerToken();
+}
+
 function readResourceCache() {
   try {
     const cached = JSON.parse(localStorage.getItem(RESOURCE_CACHE_KEY) || "[]");
@@ -89,6 +127,7 @@ function writeResourceCache(resources) {
         name: resource.name,
         tags: resource.tags || [],
         description: resource.description || "",
+        category: resource.category || "public",
         kind: resource.kind,
         mime: resource.mime,
         size: resource.size,
@@ -413,7 +452,12 @@ function setAdminMode(enabled) {
   elements.adminButton.setAttribute("aria-label", enabled ? "退出管理模式" : "管理员模式");
   elements.adminButton.classList.toggle("is-active", enabled);
   state.selectedIds.clear();
-  renderResources();
+  state.page = 1;
+  if (state.mode === "supabase" && !state.cloudOffline) {
+    loadSupabasePage();
+  } else {
+    renderResources();
+  }
   showToast(enabled ? "管理模式已开启" : "管理模式已退出", enabled ? "现在可以编辑和删除文件" : "当前为访客模式");
 }
 
@@ -468,17 +512,17 @@ function updateStorageBadge(mode) {
   };
 
   if (mode === "server") {
-    setBadge("is-online", "在线", "online");
+    setBadge("is-online", "在线 · 私密", "online");
     return;
   }
 
   if (mode === "supabase") {
-    setBadge("is-online", "在线", "online");
+    setBadge("is-online", "在线 · 私密", "online");
     return;
   }
 
   if (mode === "local") {
-    setBadge("is-offline", "离线", "offline");
+    setBadge("is-offline", "离线 · 公开", "offline");
     return;
   }
 
@@ -550,6 +594,7 @@ async function switchStorageMode(targetMode) {
     showToast("在线连接失败", "仍显示临时文件", "error");
     return;
   }
+  await syncPendingCloudUploads();
   showToast("已切换到在线模式", "正在读取共享文件");
 }
 
@@ -668,7 +713,7 @@ async function requestPersistentStorage() {
 function buildSupabasePageUrl() {
   const params = new URLSearchParams();
   const offset = (state.page - 1) * state.pageSize;
-  params.set("select", "id,name,tags,description,kind,mime,size,file_url,file_path,uploaded_at");
+  params.set("select", "id,name,category,tags,description,kind,mime,size,file_url,file_path,uploaded_at");
   params.set("limit", String(state.pageSize));
   params.set("offset", String(offset));
 
@@ -691,9 +736,16 @@ function buildSupabasePageUrl() {
   }
 
   const search = state.search.trim();
+  const conditions = [];
+  if (!state.isAdmin) {
+    conditions.push(`or(category.not.like.private*,category.eq.private:${getOwnerToken()})`);
+  }
   if (search) {
     const escaped = search.replace(/[(),{}]/g, " ").slice(0, 80);
-    params.set("or", `(name.ilike.*${escaped}*,description.ilike.*${escaped}*,tags.cs.{${escaped}})`);
+    conditions.push(`or(name.ilike.*${escaped}*,description.ilike.*${escaped}*,tags.cs.{${escaped}})`);
+  }
+  if (conditions.length) {
+    params.set("and", `(${conditions.join(",")})`);
   }
   return `${SUPABASE_URL}/rest/v1/${SUPABASE_TABLE}?${params.toString()}`;
 }
@@ -727,7 +779,11 @@ async function loadSupabasePage() {
     if (state.page === 1 && !state.resources.length) {
       const cachedResources = readResourceCache();
       if (cachedResources.length) {
-        state.resources = cachedResources.slice(0, state.pageSize).map(normalizeResource).filter(Boolean);
+        state.resources = cachedResources
+          .slice(0, state.pageSize)
+          .map(normalizeResource)
+          .filter(Boolean)
+          .filter(canViewResource);
         state.supabaseTotal = Number(localStorage.getItem(`${RESOURCE_CACHE_KEY}_total`)) || state.resources.length;
         state.supabaseTotalSize = Number(localStorage.getItem(`${RESOURCE_CACHE_KEY}_total_size`)) || 0;
         renderAll();
@@ -766,7 +822,10 @@ async function loadSupabasePage() {
     renderAll();
   } catch (error) {
     state.cloudOffline = true;
-    const localResources = (await getAllLocalResources()).map(normalizeResource).filter(Boolean);
+    const localResources = (await getAllLocalResources())
+      .map(normalizeResource)
+      .filter(Boolean)
+      .filter(canViewResource);
     state.resources = localResources;
     updateStorageBadge("supabase-offline");
     renderAll();
@@ -788,7 +847,10 @@ async function loadResources() {
     if (state.mode === "supabase" && !state.resources.length) {
       const cachedResources = readResourceCache();
       if (cachedResources.length) {
-        state.resources = cachedResources.map(normalizeResource).filter(Boolean);
+        state.resources = cachedResources
+          .map(normalizeResource)
+          .filter(Boolean)
+          .filter(canViewResource);
         renderAll();
       }
     }
@@ -802,7 +864,7 @@ async function loadResources() {
       resources = Array.isArray(payload.resources) ? payload.resources : [];
     } else if (state.mode === "supabase") {
       const response = await fetchWithTimeout(
-        `${SUPABASE_URL}/rest/v1/${SUPABASE_TABLE}?select=id,name,tags,description,kind,mime,size,file_url,file_path,uploaded_at&order=uploaded_at.desc`,
+        `${SUPABASE_URL}/rest/v1/${SUPABASE_TABLE}?select=id,name,category,tags,description,kind,mime,size,file_url,file_path,uploaded_at&order=uploaded_at.desc`,
         { headers: supabaseHeaders(), cache: "no-store" },
         12000
       );
@@ -830,7 +892,8 @@ async function loadResources() {
 
     state.resources = resources
       .map(normalizeResource)
-      .filter(Boolean);
+      .filter(Boolean)
+      .filter(canViewResource);
     state.selectedIds.clear();
     state.page = 1;
     if (state.mode === "supabase") {
@@ -841,7 +904,10 @@ async function loadResources() {
     if (state.mode === "supabase") {
       try {
         await openDatabase();
-        state.resources = (await getAllLocalResources()).map(normalizeResource).filter(Boolean);
+        state.resources = (await getAllLocalResources())
+          .map(normalizeResource)
+          .filter(Boolean)
+          .filter(canViewResource);
         state.selectedIds.clear();
         updateStorageBadge("supabase-offline");
         renderAll();
@@ -883,12 +949,16 @@ function normalizeResource(resource) {
   const manifest = parseChunkManifest(filePath);
   const compressed = resource.compressed === true || filePath.endsWith(".qzg") || Boolean(manifest?.compressed);
   const chunkParts = manifest?.parts || [];
+  const visibility = getVisibilityCategory(resource);
+  const ownerToken = getResourceOwnerToken(resource);
   return {
     ...resource,
     name,
     kind: resource.kind || getKind(fallbackFile),
-    category: resource.category || "其他",
+    category: resource.category || "public",
     tags,
+    visibility,
+    ownerToken,
     size: Number(resource.size || resource.fileSize) || 0,
     url: resource.url || resource.file_url || "",
     filePath,
@@ -1007,6 +1077,7 @@ function renderResources() {
 
   elements.resourceList.innerHTML = resources.map((resource) => {
     const tags = resource.tags.length ? ` · ${resource.tags.slice(0, 2).join(" / ")}` : "";
+    const visibilityText = resource.visibility === "private" ? " · 私密" : " · 公开";
     const playable = ["image", "video", "audio"].includes(resource.kind);
     const selection = state.isAdmin
       ? `<label class="resource-select" aria-label="选择 ${escapeHTML(resource.name)}">
@@ -1035,7 +1106,7 @@ function renderResources() {
           ${resourceIconHTML(resource)}
           <div class="resource-main__copy">
             <strong title="${escapeHTML(resource.name)}">${escapeHTML(resource.name)}</strong>
-            <span title="${escapeHTML(resource.description || "")}">${escapeHTML(formatBytes(resource.size))} · ${escapeHTML(resource.mime || "未知类型")}${escapeHTML(tags)}</span>
+            <span title="${escapeHTML(resource.description || "")}">${escapeHTML(formatBytes(resource.size))} · ${escapeHTML(resource.mime || "未知类型")}${escapeHTML(tags)}${escapeHTML(visibilityText)}</span>
           </div>
         </div>
         <span class="resource-cell"><span class="type-chip type-chip--${escapeHTML(resource.kind)}">${escapeHTML(typeLabel(resource.kind))}</span></span>
@@ -1442,7 +1513,7 @@ function uploadMetadata(file, index = 0, total = 1) {
   return {
     fileName: file.name,
     name,
-    category: "其他",
+    category: getUploadCategory(),
     tags: elements.tagsInput.value.split(/[,，]/).map((tag) => tag.trim()).filter(Boolean).slice(0, 8),
     description: elements.descriptionInput.value.trim()
   };
@@ -1728,7 +1799,7 @@ async function uploadOne(item, metadata) {
         state.resources = state.resources.filter((entry) => entry.id !== localRecord.id);
       }
     } else {
-      resource = await uploadLocally(item, metadata);
+      resource = await uploadLocally(item, metadata, { pendingCloud: true });
     }
     const normalized = normalizeResource(resource);
     if (state.mode === "supabase") {
@@ -1832,7 +1903,12 @@ async function startUpload() {
     elements.resourceNameInput.value = "";
     elements.tagsInput.value = "";
     elements.descriptionInput.value = "";
-    showToast("全部上传完成", `${successCount} 个资源已加入资源库`);
+    showToast(
+      "全部上传完成",
+      state.mode === "local"
+        ? `${successCount} 个公开资源已保存，切换到在线后自动同步`
+        : `${successCount} 个私密资源已上传`
+    );
   } else if (successCount && failedCount) {
     showToast("上传部分完成", `${successCount} 个成功，${failedCount} 个失败`, "error");
   } else {
@@ -1886,13 +1962,14 @@ function openPreview(id) {
   elements.previewMeta.innerHTML = `
     <div class="preview-meta__item"><span>文件大小</span><strong>${escapeHTML(formatBytes(resource.size))}</strong></div>
     <div class="preview-meta__item"><span>存储方式</span><strong>${resource.storage === "browser" ? "临时文件" : resource.chunked ? "分片文件" : "已上传"}</strong></div>
+    <div class="preview-meta__item"><span>可见范围</span><strong>${resource.visibility === "private" ? "私密" : "公开"}</strong></div>
     <div class="preview-meta__item"><span>标签</span><strong title="${escapeHTML(tags)}">${escapeHTML(tags)}</strong></div>
     <div class="preview-meta__item"><span>上传时间</span><strong>${escapeHTML(formatDate(resource.uploadedAt))}</strong></div>
     <div class="preview-meta__item"><span>文件类型</span><strong>${escapeHTML(typeLabel(resource.kind))}</strong></div>
     <div class="preview-meta__item"><span>备注</span><strong title="${escapeHTML(resource.description || "无")}">${escapeHTML(resource.description || "无")}</strong></div>
   `;
   hydrateIcons(elements.previewArea);
-  elements.copyLinkButton.hidden = !["server", "supabase"].includes(state.mode) || !resource.url;
+  elements.copyLinkButton.hidden = !["server", "supabase"].includes(state.mode) || !resource.url || resource.visibility === "private";
   elements.previewModal.classList.add("is-open");
   elements.previewModal.setAttribute("aria-hidden", "false");
   document.body.classList.add("modal-open");
