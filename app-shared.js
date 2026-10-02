@@ -3908,6 +3908,21 @@ function bindEvents() {
     }
     toggleReaderFullscreen();
   });
+  document.addEventListener("keydown", (event) => {
+    if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") {
+      return;
+    }
+    if (!elements.readerView.classList.contains("is-open") || state.readerPages.length <= 1) {
+      return;
+    }
+    const target = event.target;
+    if (target && typeof target.closest === "function"
+      && target.closest("input, textarea, select, [contenteditable='true']")) {
+      return;
+    }
+    event.preventDefault();
+    goReaderPage(event.key === "ArrowRight" ? 1 : -1);
+  });
   elements.copyLinkButton.addEventListener("click", copyResourceLink);
   elements.editForm.addEventListener("submit", saveEdit);
   elements.confirmDeleteButton.addEventListener("click", () => {
