@@ -13,7 +13,9 @@ const ICONS = {
   "film": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M7 3v18"/><path d="M17 3v18"/><path d="M3 7.5h4"/><path d="M17 7.5h4"/><path d="M3 12h18"/><path d="M3 16.5h4"/><path d="M17 16.5h4"/></svg>',
   "folder-open": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="m6 14 1.45-2.9A2 2 0 0 1 9.24 10H20a2 2 0 0 1 1.94 2.5l-1.55 6a2 2 0 0 1-1.94 1.5H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3.93a2 2 0 0 1 1.66.9l.82 1.2A2 2 0 0 0 11.07 6H18a2 2 0 0 1 2 2v2"/></svg>',
   "folder-tree": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10a1 1 0 0 0 1-1V6a1 1 0 0 0-1-1h-2.5a1 1 0 0 1-.8-.4l-.9-1.2A1 1 0 0 0 15 3h-4a1 1 0 0 0-1 1v5a1 1 0 0 0 1 1z"/><path d="M20 21a1 1 0 0 0 1-1v-3a1 1 0 0 0-1-1h-2.5a1 1 0 0 1-.8-.4l-.9-1.2a1 1 0 0 0-.8-.4h-4a1 1 0 0 0-1 1v5a1 1 0 0 0 1 1z"/><path d="M3 5a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h5"/><path d="M6 5H3"/></svg>',
+  "globe": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/><path d="M2 12h20"/></svg>',
   "image": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg>',
+  "lock": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>',
   "music": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>',
   "package-open": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22v-9"/><path d="M15.17 2.21 12 5.38 8.83 2.21 3.77 5.25A2 2 0 0 0 2.72 7v10a2 2 0 0 0 1.05 1.76l7 4A2 2 0 0 0 12 22a2 2 0 0 0 1.23-.24l7-4A2 2 0 0 0 21.28 17V7a2 2 0 0 0-1.05-1.75Z"/><path d="m7 8 5 3 5-3"/><path d="m7 13 5 3 5-3"/></svg>',
   "pencil": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"/><path d="m15 5 4 4"/></svg>',
@@ -94,7 +96,13 @@ function getVisibilityCategory(resource) {
 
 function getResourceOwnerToken(resource) {
   const category = String(resource?.category || "");
-  return category.startsWith("private:") ? category.slice("private:".length) : "";
+  if (category.startsWith("private:")) {
+    return category.slice("private:".length);
+  }
+  if (category.startsWith("public:")) {
+    return category.slice("public:".length);
+  }
+  return "";
 }
 
 function defaultUploadVisibility() {
@@ -108,7 +116,7 @@ function syncVisibilityDefault() {
 }
 
 function getUploadCategory(visibility) {
-  return visibility === "private" ? `private:${getOwnerToken()}` : "public";
+  return `${visibility === "private" ? "private" : "public"}:${getOwnerToken()}`;
 }
 
 function canViewResource(resource) {
@@ -116,6 +124,13 @@ function canViewResource(resource) {
     return true;
   }
   return getResourceOwnerToken(resource) === getOwnerToken();
+}
+
+function canManageVisibility(resource) {
+  return state.isAdmin || (
+    resource.ownerToken
+    && resource.ownerToken === getOwnerToken()
+  );
 }
 
 function readResourceCache() {
@@ -1113,6 +1128,11 @@ function renderResources() {
           <span data-icon="trash-2"></span>
         </button>`
       : "";
+    const visibilityAction = canManageVisibility(resource)
+      ? `<button class="row-action" type="button" data-action="visibility" data-id="${escapeHTML(resource.id)}" aria-label="${resource.visibility === "private" ? "设为公开" : "设为私密"} ${escapeHTML(resource.name)}" title="${resource.visibility === "private" ? "设为公开" : "设为私密"}">
+          <span data-icon="${resource.visibility === "private" ? "globe" : "lock"}"></span>
+        </button>`
+      : "";
     return `
       <article class="resource-row ${playable ? "is-playable" : ""}" data-resource-id="${escapeHTML(resource.id)}" ${playable ? 'role="button" tabindex="0"' : ""}>
         <div class="resource-main">
@@ -1128,6 +1148,7 @@ function renderResources() {
         <span class="resource-actions">
           ${previewAction}
           ${editAction}
+          ${visibilityAction}
           <button class="row-action" type="button" data-action="download" data-id="${escapeHTML(resource.id)}" aria-label="下载 ${escapeHTML(resource.name)}">
             <span data-icon="download"></span>
           </button>
@@ -2138,6 +2159,71 @@ async function saveEdit(event) {
   }
 }
 
+async function toggleResourceVisibility(id) {
+  const resource = findResource(id);
+  if (!resource) {
+    return;
+  }
+  if (!canManageVisibility(resource)) {
+    showToast("无法修改可见范围", "只有上传者和管理员可以修改", "error");
+    return;
+  }
+
+  const nextVisibility = resource.visibility === "private" ? "public" : "private";
+  const ownerToken = resource.ownerToken || getOwnerToken();
+  const category = `${nextVisibility}:${ownerToken}`;
+
+  try {
+    let savedResource;
+    if (state.mode === "server") {
+      const response = await fetchWithTimeout(`${API_BASE}/update`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: resource.id, name: resource.name, category })
+      }, 10000);
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok || !payload.resource) {
+        throw new Error(payload.error || "修改失败");
+      }
+      savedResource = payload.resource;
+    } else if (state.mode === "supabase" && resource.storage !== "browser") {
+      const response = await fetchWithTimeout(
+        `${SUPABASE_URL}/rest/v1/${SUPABASE_TABLE}?id=eq.${encodeURIComponent(resource.id)}`,
+        {
+          method: "PATCH",
+          headers: supabaseHeaders({
+            "Content-Type": "application/json",
+            Prefer: "return=representation"
+          }),
+          body: JSON.stringify({ category })
+        },
+        12000
+      );
+      if (!response.ok) {
+        const detail = await response.text();
+        throw new Error(`修改失败：${detail.slice(0, 140)}`);
+      }
+      const updated = await response.json();
+      savedResource = Array.isArray(updated) ? updated[0] : { ...resource, category };
+    } else {
+      savedResource = { ...resource, category };
+      await putLocalResource(savedResource);
+    }
+
+    state.resources = state.resources.map((entry) => (
+      entry.id === resource.id ? normalizeResource(savedResource) : entry
+    ));
+    if (state.mode === "supabase" && !state.cloudOffline) {
+      await loadSupabasePage();
+    } else {
+      renderAll();
+    }
+    showToast(nextVisibility === "private" ? "已设为私密" : "已设为公开", resource.name);
+  } catch (error) {
+    showToast("可见范围修改失败", error.message || "请稍后重试", "error");
+  }
+}
+
 function askDelete(ids) {
   const deleteIds = [...new Set(Array.isArray(ids) ? ids : [ids])]
     .filter((id) => findResource(id));
@@ -2470,6 +2556,8 @@ function bindEvents() {
       openPreview(id);
     } else if (action.dataset.action === "edit") {
       openEdit(id);
+    } else if (action.dataset.action === "visibility") {
+      toggleResourceVisibility(id);
     } else if (action.dataset.action === "download") {
       downloadResource(id);
     } else if (action.dataset.action === "delete") {
