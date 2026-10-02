@@ -2523,7 +2523,8 @@ function renderAudioPlayer(resource) {
       <div class="audio-playlist" aria-label="播放列表">
         ${playlist.map((entry, index) => `
           <button class="audio-playlist__item ${index === state.audioIndex ? "is-active" : ""}" type="button" data-audio-track="${index}">
-            <span>${index + 1}</span>
+            <span class="audio-playlist__index">${index + 1}</span>
+            <span class="audio-playlist__cover" data-audio-playlist-cover="${escapeHTML(entry.id)}" data-icon="music"></span>
             <strong>${escapeHTML(entry.name)}</strong>
           </button>
         `).join("")}
@@ -2612,6 +2613,20 @@ function setupAudioPlayer() {
     hydrateIcons(modeButton);
   };
 
+  const hydratePlaylistCovers = () => {
+    player.querySelectorAll("[data-audio-playlist-cover]").forEach(async (coverNode) => {
+      const resource = state.audioPlaylist.find((entry) => entry.id === coverNode.dataset.audioPlaylistCover);
+      const coverUrl = resource ? await getAudioCover(resource) : "";
+      if (!coverUrl || !coverNode.isConnected) {
+        return;
+      }
+      coverNode.removeAttribute("data-icon");
+      delete coverNode.dataset.iconReady;
+      coverNode.classList.add("has-cover");
+      coverNode.innerHTML = `<img src="${escapeHTML(coverUrl)}" alt="" loading="lazy" decoding="async">`;
+    });
+  };
+
   audio.addEventListener("play", () => player.classList.add("is-playing"));
   audio.addEventListener("pause", () => player.classList.remove("is-playing"));
   audio.addEventListener("ended", () => playIndex(getNextIndex(1)));
@@ -2631,6 +2646,7 @@ function setupAudioPlayer() {
     });
   });
   updateTrackUI();
+  hydratePlaylistCovers();
 }
 
 async function openPreview(id) {
