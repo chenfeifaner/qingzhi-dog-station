@@ -132,6 +132,9 @@ const state = {
   audioPlaylist: [],
   audioIndex: -1,
   audioMode: "sequence",
+  audioLibrary: [],
+  audioLibraryLoaded: false,
+  audioCovers: new Map(),
   objectUrls: new Map(),
   videoThumbs: new Map(),
   db: null
@@ -2054,6 +2057,10 @@ async function uploadOne(item, metadata) {
       resource = await uploadLocally(item, metadata, { pendingCloud: true });
     }
     const normalized = normalizeResource(resource);
+    if (normalized.kind === "audio") {
+      state.audioLibrary = [];
+      state.audioLibraryLoaded = false;
+    }
     if (state.mode === "supabase") {
       state.cloudOffline = false;
       state.page = 1;
@@ -2180,16 +2187,247 @@ function findResource(id) {
   return state.resources.find((resource) => resource.id === id);
 }
 
+async function loadAudioLibrary(currentResource) {
+  if (state.audioLibraryLoaded) {
+    return;
+  }
+  let resources = [];
+  if (state.mode === "supabase") {
+    const params = new URLSearchParams();
+    params.set("select", "id,name,category,tags,description,kind,mime,size,file_url,file_path,uploaded_at");
+    params.set("kind", "eq.audio");
+    params.set("order", "uploaded_at.asc");
+    const response = await fetchWithTimeout(
+      `${SUPABASE_URL}/rest/v1/${SUPABASE_TABLE}?${params.toString()}`,
+      { headers: supabaseHeaders(), cache: "no-store" },
+      15000
+    );
+    if (!response.ok) {
+      throw new Error("音乐列表读取失败");
+    }
+    resources = await response.json();
+    resources = resources.map((resource) => normalizeResource({
+      ...resource,
+      url: resource.file_url,
+      filePath: resource.file_path,
+      uploadedAt: resource.uploaded_at
+    }));
+  } else if (state.mode === "server") {
+    resources = state.resources;
+  } else {
+    resources = await getAllLocalResources();
+  }
+
+  state.audioLibrary = resources
+    .map(normalizeResource)
+    .filter(Boolean)
+    .filter((resource) => resource.kind === "audio" && !resource.chunked && getObjectUrl(resource));
+  if (!state.audioLibrary.some((resource) => resource.id === currentResource.id)) {
+    state.audioLibrary.unshift(currentResource);
+  }
+  state.audioLibraryLoaded = true;
+}
+
 function getAudioPlaylist(resource) {
-  const playlist = state.resources.filter((entry) => (
-    entry.kind === "audio"
-    && !entry.chunked
-    && getObjectUrl(entry)
-  ));
+  const playlist = state.audioLibrary.length
+    ? [...state.audioLibrary]
+    : state.resources.filter((entry) => (
+      entry.kind === "audio"
+      && !entry.chunked
+      && getObjectUrl(entry)
+    ));
   if (!playlist.some((entry) => entry.id === resource.id)) {
     playlist.unshift(resource);
   }
   return playlist;
+}
+
+function readSynchsafeInteger(bytes, offset) {
+  return (
+    ((bytes[offset] & 0x7f) << 21)
+    | ((bytes[offset + 1] & 0x7f) << 14)
+    | ((bytes[offset + 2] & 0x7f) << 7)
+    | (bytes[offset + 3] & 0x7f)
+  );
+}
+
+function readUint24(bytes, offset) {
+  return (bytes[offset] << 16) | (bytes[offset + 1] << 8) | bytes[offset + 2];
+}
+
+function readUint32(bytes, offset) {
+  return (
+    bytes[offset] * 0x1000000
+    + (bytes[offset + 1] << 16)
+    + (bytes[offset + 2] << 8)
+    + bytes[offset + 3]
+  );
+}
+
+function findEncodedTerminator(bytes, start, encoding) {
+  if (encoding === 1 || encoding === 2) {
+    for (let index = start; index + 1 < bytes.length; index += 2) {
+      if (bytes[index] === 0 && bytes[index + 1] === 0) {
+        return index + 2;
+      }
+    }
+    return -1;
+  }
+  const index = bytes.indexOf(0, start);
+  return index < 0 ? -1 : index + 1;
+}
+
+function inferImageMime(bytes) {
+  if (bytes[0] === 0xff && bytes[1] === 0xd8) {
+    return "image/jpeg";
+  }
+  if (bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e && bytes[3] === 0x47) {
+    return "image/png";
+  }
+  if (bytes[0] === 0x47 && bytes[1] === 0x49 && bytes[2] === 0x46) {
+    return "image/gif";
+  }
+  if (bytes[0] === 0x52 && bytes[1] === 0x49 && bytes[2] === 0x46 && bytes[3] === 0x46) {
+    return "image/webp";
+  }
+  return "image/jpeg";
+}
+
+function blobToDataUrl(blob) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result || ""));
+    reader.onerror = () => reject(reader.error || new Error("封面读取失败"));
+    reader.readAsDataURL(blob);
+  });
+}
+
+async function extractId3Cover(bytes) {
+  if (bytes.length < 10 || bytes[0] !== 0x49 || bytes[1] !== 0x44 || bytes[2] !== 0x33) {
+    return "";
+  }
+  const version = bytes[3];
+  const tagSize = readSynchsafeInteger(bytes, 6);
+  const tagEnd = Math.min(bytes.length, 10 + tagSize);
+  let offset = 10;
+
+  while (offset + 10 <= tagEnd) {
+    let frameId = "";
+    let frameSize = 0;
+    let headerSize = 10;
+    if (version === 2) {
+      if (offset + 6 > tagEnd) {
+        break;
+      }
+      frameId = String.fromCharCode(bytes[offset], bytes[offset + 1], bytes[offset + 2]);
+      frameSize = readUint24(bytes, offset + 3);
+      headerSize = 6;
+    } else {
+      frameId = String.fromCharCode(bytes[offset], bytes[offset + 1], bytes[offset + 2], bytes[offset + 3]);
+      frameSize = version === 4
+        ? readSynchsafeInteger(bytes, offset + 4)
+        : readUint32(bytes, offset + 4);
+    }
+    if (!frameId || frameSize <= 0 || offset + headerSize + frameSize > tagEnd) {
+      break;
+    }
+    if (frameId === "APIC" || frameId === "PIC") {
+      let payload = offset + headerSize;
+      const encoding = bytes[payload];
+      payload += 1;
+      let mime = "";
+      if (frameId === "APIC") {
+        let boundary = payload;
+        while (boundary < offset + headerSize + frameSize && bytes[boundary] !== 0) {
+          mime += String.fromCharCode(bytes[boundary]);
+          boundary += 1;
+        }
+        payload = boundary + 1;
+      } else {
+        const format = String.fromCharCode(bytes[payload], bytes[payload + 1], bytes[payload + 2]).toUpperCase();
+        mime = format === "PNG" ? "image/png" : "image/jpeg";
+        payload += 3;
+      }
+      payload += 1;
+      const descriptionEnd = findEncodedTerminator(bytes, payload, encoding);
+      if (descriptionEnd >= 0) {
+        payload = descriptionEnd;
+      }
+      const imageEnd = offset + headerSize + frameSize;
+      if (payload < imageEnd) {
+        const imageBytes = bytes.slice(payload, imageEnd);
+        const imageMime = mime || inferImageMime(imageBytes);
+        return blobToDataUrl(new Blob([imageBytes], { type: imageMime }));
+      }
+    }
+    offset += headerSize + frameSize;
+  }
+  return "";
+}
+
+async function extractFlacCover(bytes) {
+  if (bytes.length < 8 || String.fromCharCode(bytes[0], bytes[1], bytes[2], bytes[3]) !== "fLaC") {
+    return "";
+  }
+  let offset = 4;
+  while (offset + 4 <= bytes.length) {
+    const header = bytes[offset];
+    const isLast = Boolean(header & 0x80);
+    const blockType = header & 0x7f;
+    const blockSize = readUint24(bytes, offset + 1);
+    const blockStart = offset + 4;
+    const blockEnd = blockStart + blockSize;
+    if (blockEnd > bytes.length) {
+      break;
+    }
+    if (blockType === 6 && blockStart + 8 <= blockEnd) {
+      let cursor = blockStart + 4;
+      const mimeLength = readUint32(bytes, cursor);
+      cursor += 4;
+      const mime = new TextDecoder("ascii").decode(bytes.slice(cursor, cursor + mimeLength));
+      cursor += mimeLength;
+      const descriptionLength = readUint32(bytes, cursor);
+      cursor += 4 + descriptionLength + 16;
+      const imageLength = readUint32(bytes, cursor);
+      cursor += 4;
+      if (cursor + imageLength <= blockEnd) {
+        const imageBytes = bytes.slice(cursor, cursor + imageLength);
+        return blobToDataUrl(new Blob([imageBytes], { type: mime || inferImageMime(imageBytes) }));
+      }
+    }
+    offset = blockEnd;
+    if (isLast) {
+      break;
+    }
+  }
+  return "";
+}
+
+async function getAudioCover(resource) {
+  if (!resource?.url) {
+    return "";
+  }
+  if (state.audioCovers.has(resource.id)) {
+    return state.audioCovers.get(resource.id);
+  }
+  try {
+    const headers = /^https?:/i.test(resource.url)
+      ? { Range: "bytes=0-2097151" }
+      : {};
+    const response = await fetchWithTimeout(resource.url, {
+      headers,
+      cache: "no-store"
+    }, 20000);
+    const buffer = await response.arrayBuffer();
+    const bytes = new Uint8Array(buffer);
+    const cover = await extractId3Cover(bytes) || await extractFlacCover(bytes);
+    if (cover) {
+      state.audioCovers.set(resource.id, cover);
+    }
+    return cover;
+  } catch (error) {
+    return "";
+  }
 }
 
 function renderAudioPlayer(resource) {
@@ -2237,8 +2475,21 @@ function setupAudioPlayer() {
   }
 
   const title = player.querySelector(".audio-player__title");
+  const cover = player.querySelector(".audio-cover");
   const modeButton = player.querySelector("[data-audio-mode]");
   const trackButtons = [...player.querySelectorAll("[data-audio-track]")];
+
+  const updateCover = async (resource) => {
+    cover.classList.remove("has-cover");
+    cover.innerHTML = '<span data-icon="music"></span>';
+    hydrateIcons(cover);
+    const coverUrl = await getAudioCover(resource);
+    if (!coverUrl || !player.isConnected || state.audioPlaylist[state.audioIndex]?.id !== resource.id) {
+      return;
+    }
+    cover.innerHTML = `<img src="${escapeHTML(coverUrl)}" alt="" loading="lazy" decoding="async">`;
+    cover.classList.add("has-cover");
+  };
 
   const updateTrackUI = () => {
     const current = state.audioPlaylist[state.audioIndex];
@@ -2249,6 +2500,7 @@ function setupAudioPlayer() {
     trackButtons.forEach((button) => {
       button.classList.toggle("is-active", Number(button.dataset.audioTrack) === state.audioIndex);
     });
+    updateCover(current);
   };
 
   const getNextIndex = (step) => {
@@ -2362,6 +2614,18 @@ async function openPreview(id) {
   const url = getObjectUrl(resource);
   let preview = "";
   let loadTextDocument = false;
+
+  if (resource.kind === "audio" && !state.audioLibraryLoaded) {
+    const progressToast = showProgressToast("正在加载音乐列表", resource.name);
+    try {
+      await loadAudioLibrary(resource);
+      progressToast.complete("音乐列表已加载", `${state.audioLibrary.length} 首`);
+    } catch (error) {
+      state.audioLibrary = state.resources.filter((entry) => entry.kind === "audio");
+      state.audioLibraryLoaded = true;
+      progressToast.fail("音乐列表读取失败", "已改用当前列表");
+    }
+  }
 
   if (resource.kind === "folder") {
     preview = `
