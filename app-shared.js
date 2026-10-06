@@ -284,6 +284,18 @@ function formatBytes(bytes) {
   return `${amount.toFixed(digits)} ${units[index]}`;
 }
 
+function formatTransferProgress(loaded, total, originalSize) {
+  const original = Number(originalSize) || 0;
+  if (!total) {
+    return `已读取 ${formatBytes(loaded)}`;
+  }
+  if (original > 0) {
+    const ratio = Math.min(1, loaded / total);
+    return `${formatBytes(ratio * original)} / ${formatBytes(original)}`;
+  }
+  return `${formatBytes(loaded)} / ${formatBytes(total)}`;
+}
+
 function formatDate(value, includeTime = true) {
   if (!value) {
     return "未知";
@@ -2899,9 +2911,10 @@ async function preparePreviewResource(resource, title = "正在准备文档预�
       throw new Error("文件地址不可用");
     }
     const compressedBlob = await fetchBlobWithProgress(sourceUrl, (loaded, total) => {
+      const originalSize = Number(resource.originalSize || resource.size) || 0;
       progressToast.update(
         total ? (loaded / total) * 90 : 0,
-        total ? `${formatBytes(loaded)} / ${formatBytes(total)}` : `已读取 ${formatBytes(loaded)}`
+        formatTransferProgress(loaded, total, originalSize)
       );
     });
     progressToast.update(94, "正在恢复原文件");
@@ -3750,10 +3763,11 @@ async function downloadResource(id) {
             supabasePublicFileUrl(partPath),
             (loaded, total) => {
               const partProgress = total ? loaded / total : 0;
-              const overall = ((index + partProgress) / resource.chunkParts.length) * 100;
+              const overallRatio = (index + partProgress) / resource.chunkParts.length;
+              const originalSize = Number(resource.originalSize || resource.size) || 0;
               progressToast.update(
-                overall,
-                `分片 ${index + 1} / ${resource.chunkParts.length}${total ? ` · ${formatBytes(loaded)} / ${formatBytes(total)}` : ""}`
+                overallRatio * 100,
+                `分片 ${index + 1} / ${resource.chunkParts.length} · ${formatTransferProgress(overallRatio * originalSize, originalSize, originalSize)}`
               );
             }
           );
@@ -3770,7 +3784,7 @@ async function downloadResource(id) {
         downloadedBlob = await fetchBlobWithProgress(resource.url, (loaded, total) => {
           progressToast.update(
             total ? (loaded / total) * 100 : 0,
-            total ? `${formatBytes(loaded)} / ${formatBytes(total)}` : `已下载 ${formatBytes(loaded)}`
+            formatTransferProgress(loaded, total, Number(resource.originalSize || resource.size) || 0)
           );
         });
       }
