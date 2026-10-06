@@ -17,10 +17,14 @@ create table if not exists public.resource_items (
   kind text default 'other',
   mime text default 'application/octet-stream',
   size bigint default 0,
+  original_size bigint default 0,
   file_url text not null,
   file_path text not null,
   uploaded_at timestamptz default now()
 );
+
+alter table public.resource_items
+  add column if not exists original_size bigint default 0;
 
 alter table public.resource_items enable row level security;
 
