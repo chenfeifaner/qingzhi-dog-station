@@ -3058,7 +3058,9 @@ async function openPreview(id) {
   elements.previewModal.classList.remove("is-expanded");
   syncPreviewReadingButton();
   syncPreviewFullscreenButton();
-  elements.copyLinkButton.hidden = !["server", "supabase"].includes(state.mode) || !resource.url;
+  elements.copyLinkButton.hidden = !["server", "supabase"].includes(state.mode)
+    || !resource.url
+    || resource.compressed;
   elements.previewModal.classList.add("is-open");
   elements.previewModal.setAttribute("aria-hidden", "false");
   document.body.classList.add("modal-open");
