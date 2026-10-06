@@ -127,6 +127,7 @@ const state = {
   supabaseTotal: 0,
   supabaseTotalSize: 0,
   cloudOffline: false,
+  supabaseHasOriginalSize: true,
   activeUpload: false,
   syncingPending: false,
   cloudRetryTimer: null,
@@ -835,7 +836,12 @@ async function requestPersistentStorage() {
 function buildSupabasePageUrl() {
   const params = new URLSearchParams();
   const offset = (state.page - 1) * state.pageSize;
-  params.set("select", "id,name,category,tags,description,kind,mime,size,original_size,file_url,file_path,uploaded_at");
+  const columns = ["id", "name", "category", "tags", "description", "kind", "mime", "size"];
+  if (state.supabaseHasOriginalSize) {
+    columns.push("original_size");
+  }
+  columns.push("file_url", "file_path", "uploaded_at");
+  params.set("select", columns.join(","));
   params.set("limit", String(state.pageSize));
   params.set("offset", String(offset));
 
@@ -909,13 +915,25 @@ async function loadSupabasePage() {
     }
 
     const statsPromise = loadSupabaseFilteredStats();
-    const response = await fetchWithTimeout(buildSupabasePageUrl(), {
+    const fetchPage = () => fetchWithTimeout(buildSupabasePageUrl(), {
       headers: supabaseHeaders({ Prefer: "count=exact" }),
       cache: "no-store"
     }, 15000);
+
+    let response = await fetchPage();
     if (!response.ok) {
-      const detail = await response.text();
-      throw new Error(`Supabase table unavailable: ${detail.slice(0, 120)}`);
+      let detail = await response.text();
+      if (state.supabaseHasOriginalSize && detail.includes("original_size")) {
+        // Older tables may not have the original_size column yet.
+        state.supabaseHasOriginalSize = false;
+        response = await fetchPage();
+        if (!response.ok) {
+          detail = await response.text();
+        }
+      }
+      if (!response.ok) {
+        throw new Error(`Supabase table unavailable: ${detail.slice(0, 120)}`);
+      }
     }
     const stats = await statsPromise;
     state.supabaseTotal = stats.count;
