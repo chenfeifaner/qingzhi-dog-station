@@ -104,6 +104,7 @@ function writeResourceCache(resources) {
         kind: resource.kind,
         mime: resource.mime,
         size: resource.size,
+        original_size: resource.originalSize || resource.size,
         file_url: resource.url || resource.file_url || "",
         file_path: resource.filePath || resource.file_path || "",
         uploaded_at: resource.uploadedAt || resource.uploaded_at
@@ -834,7 +835,7 @@ async function requestPersistentStorage() {
 function buildSupabasePageUrl() {
   const params = new URLSearchParams();
   const offset = (state.page - 1) * state.pageSize;
-  params.set("select", "id,name,category,tags,description,kind,mime,size,file_url,file_path,uploaded_at");
+  params.set("select", "id,name,category,tags,description,kind,mime,size,original_size,file_url,file_path,uploaded_at");
   params.set("limit", String(state.pageSize));
   params.set("offset", String(offset));
 
@@ -1075,7 +1076,7 @@ function normalizeResource(resource) {
     compressed,
     originalName: resource.originalName || name,
     originalMime: resource.originalMime || resource.mime || "application/octet-stream",
-    originalSize: Number(resource.originalSize || resource.size) || 0,
+    originalSize: Number(resource.original_size || resource.originalSize || resource.size) || 0,
     uploadedAt: resource.uploadedAt || resource.uploaded_at || new Date().toISOString()
   };
 }
@@ -1410,7 +1411,7 @@ function renderResources() {
           ${resourceIconHTML(resource)}
           <div class="resource-main__copy">
             <strong title="${escapeHTML(resource.name)}">${escapeHTML(resource.name)}</strong>
-            <span title="${escapeHTML(resource.description || "")}">${escapeHTML(formatBytes(resource.size))} · ${escapeHTML(resource.mime || "未知类型")}${escapeHTML(tags)}</span>
+            <span title="${escapeHTML(resource.description || "")}">${escapeHTML(formatBytes(resource.originalSize || resource.size))} · ${escapeHTML(resource.mime || "未知类型")}${escapeHTML(tags)}</span>
           </div>
         </div>
         <span class="resource-cell"><span class="type-chip type-chip--${escapeHTML(resource.kind)}">${escapeHTML(typeLabel(resource.kind))}</span></span>
@@ -1883,6 +1884,7 @@ async function uploadLocally(item, metadata, options = {}) {
     kind: item.kind,
     mime: item.file.type || "application/octet-stream",
     size: item.file.size,
+    originalSize: item.file.size,
     uploadedAt: new Date().toISOString(),
     blob: item.file,
     storage: "browser",
@@ -2053,22 +2055,36 @@ async function uploadToSupabase(item, metadata) {
       description: metadata.description,
       kind: item.kind,
       mime: prepared.originalMime,
-      size: prepared.originalSize,
+      size: prepared.blob.size,
+      original_size: prepared.originalSize,
       file_url: fileUrl,
       file_path: manifest
     };
 
-    const response = await fetchWithTimeout(`${SUPABASE_URL}/rest/v1/${SUPABASE_TABLE}`, {
+    const insertRow = (payload) => fetchWithTimeout(`${SUPABASE_URL}/rest/v1/${SUPABASE_TABLE}`, {
       method: "POST",
       headers: supabaseHeaders({
         "Content-Type": "application/json",
         Prefer: "return=representation"
       }),
-      body: JSON.stringify(row)
+      body: JSON.stringify(payload)
     }, 20000);
+
+    let response = await insertRow(row);
     if (!response.ok) {
       const detail = await response.text();
-      throw new Error(`资源信息保存失败：${detail.slice(0, 140)}`);
+      if (detail.includes("original_size")) {
+        // Older tables may not have the original_size column yet.
+        const legacyRow = { ...row, size: prepared.originalSize };
+        delete legacyRow.original_size;
+        response = await insertRow(legacyRow);
+        if (!response.ok) {
+          const retryDetail = await response.text();
+          throw new Error(`资源信息保存失败：${retryDetail.slice(0, 140)}`);
+        }
+      } else {
+        throw new Error(`资源信息保存失败：${detail.slice(0, 140)}`);
+      }
     }
     const inserted = await response.json();
     const saved = Array.isArray(inserted) ? inserted[0] : row;
@@ -3005,8 +3021,13 @@ async function openPreview(id) {
     setupAudioPlayer();
   }
   const tags = resource.tags.length ? resource.tags.join("、") : "无标签";
+  const originalSize = resource.originalSize || resource.size;
+  const storedSizeItem = resource.compressed && resource.size && resource.size !== originalSize
+    ? `<div class="preview-meta__item"><span>云端占用</span><strong>${escapeHTML(formatBytes(resource.size))}</strong></div>`
+    : "";
   elements.previewMeta.innerHTML = `
-    <div class="preview-meta__item"><span>文件大小</span><strong>${escapeHTML(formatBytes(resource.size))}</strong></div>
+    <div class="preview-meta__item"><span>文件大小</span><strong>${escapeHTML(formatBytes(originalSize))}</strong></div>
+    ${storedSizeItem}
     <div class="preview-meta__item"><span>存储方式</span><strong>${resource.storage === "browser" ? "临时文件" : resource.chunked ? "分片文件" : "已上传"}</strong></div>
     <div class="preview-meta__item"><span>标签</span><strong title="${escapeHTML(tags)}">${escapeHTML(tags)}</strong></div>
     <div class="preview-meta__item"><span>上传时间</span><strong>${escapeHTML(formatDate(resource.uploadedAt))}</strong></div>
